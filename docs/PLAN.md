@@ -9,7 +9,7 @@
 | --- | --- |
 | 後端 | FastAPI + Pydantic，`uv` 管理套件 |
 | 前端 | React + TypeScript + Vite + Tailwind，型別手寫在 `types.ts` 並與 Pydantic 對齊 |
-| LLM | Claude API，手寫 agent loop；`MODEL` 環境變數，預設 `claude-opus-5-5`，開發期可設 `claude-haiku-5-5` |
+| LLM | Claude API，手寫 agent loop；模型用 `MODEL` 環境變數切換。**開發期用 `claude-haiku-5-5`**（`.env.example` 預設值），評測和 demo 再換 `claude-opus-5-5` |
 | 天氣 | Open-Meteo：16 天內用預報，之後用過去 5 年同期 ±3 天平均；免 key |
 | 店家與景點 | Google Places API (New) Text Search；所有 stop（景點、餐廳、購物）都要確認營業時間 |
 | 地圖 | Google Maps JavaScript API（`@vis.gl/react-google-maps`、Advanced Markers、Map ID 樣式） |
@@ -65,6 +65,10 @@ frontend/
 - 工具：`get_weather(lat, lng, date)`、`search_place(query, lat, lng, radius_m, date)`、`submit_outline(TripOutline)`，皆 `strict: true`。
 - `search_place` 回 3–5 個候選，只附該日期當天的營業時間，節省 token。
 - 上限：12 回合、60 次工具呼叫；結果快取。
+- 模型差異：
+  - `effort` 一律明確設定（Haiku 5.5 和 Opus 5.5 預設都是 `medium`）。
+  - Haiku 5.5 沒有 server-side refusal fallback，`fallbacks` 參數只在 Opus 5.5 等支援的模型才送；`stop_reason == "refusal"` 一律檢查。
+  - Haiku 5.5 的 prompt 超過 100K token 時單價變 5 倍，loop 要記錄每輪的 `usage.input_tokens`，超過 80K 就警告。
 - `submit_outline` 時程式檢查：
   1. 日期涵蓋 start–end，不缺不重複
   2. 每天有午餐、晚餐（抵達日／回程日依航班時間豁免）

@@ -4,7 +4,7 @@
 
 <!-- TODO（步驟 8）：demo 截圖或 GIF -->
 
-> **目前進度**：第一階段 MVP 開發中，正在進行步驟 0／9。詳見 [實作計畫](docs/PLAN.md)。
+> **目前進度**：第一階段 MVP 開發中，已完成步驟 1（後端骨架）／9。詳見 [實作計畫](docs/PLAN.md)。
 
 ## 功能
 
@@ -40,7 +40,10 @@
 
 ### 需要的工具
 
-<!-- TODO（步驟 1、3）：Python、uv、Node.js 的版本 -->
+- Python 3.13 以上
+- [uv](https://docs.astral.sh/uv/)（Python 套件管理）：macOS 可以用 `brew install uv` 安裝
+
+<!-- TODO（步驟 3）：Node.js 的版本 -->
 
 ### 需要的 API key
 
@@ -58,7 +61,14 @@
 
 ### 啟動後端
 
-<!-- TODO（步驟 1） -->
+```bash
+cd backend
+cp .env.example .env      # 之後的步驟會在這裡填入 API key
+uv sync                   # 安裝套件
+uv run uvicorn app.main:app --reload --port 8000
+```
+
+打開 <http://localhost:8000/api/health>，看到 `{"status":"ok", ...}` 就代表啟動成功。API 文件在 <http://localhost:8000/docs>。
 
 ### 啟動前端
 
@@ -66,7 +76,10 @@
 
 ### 測試
 
-<!-- TODO（步驟 1） -->
+```bash
+cd backend
+uv run pytest
+```
 
 ---
 
