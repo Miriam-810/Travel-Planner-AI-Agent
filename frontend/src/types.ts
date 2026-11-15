@@ -59,3 +59,63 @@ export interface Trip {
   sample: boolean
   days: Day[]
 }
+
+// --- Request form and outline (backend: TripRequest, TripOutline, OutlineResponse) ---
+
+export interface LodgingInput {
+  name: string
+  check_in: string
+  check_out: string
+}
+
+export interface TripRequest {
+  country: string
+  destination: string
+  start_date: string
+  end_date: string
+  /** "HH:MM" or null */
+  arrival_time: string | null
+  departure_time: string | null
+  travelers: number
+  budget_twd: number | null
+  preferences: string[]
+  lodgings: LodgingInput[]
+}
+
+export interface StopDraft {
+  name: string
+  kind: StopKind
+  meal: MealType | null
+  place_id: string
+  /** "HH:MM" or "HH:MM:SS" */
+  arrive: string
+  stay_min: number
+  note: string
+}
+
+export interface DayDraft {
+  date: string
+  title: string
+  area: string
+  area_lat: number
+  area_lng: number
+  stops: StopDraft[]
+}
+
+export interface TripOutline {
+  days: DayDraft[]
+}
+
+export interface OutlineResponse {
+  outline: TripOutline
+  warnings: string[]
+  remaining_today: number
+  stats: {
+    model: string
+    turns: number
+    tool_calls: number
+    searches: number
+    claude_usd: number | null
+    places_usd: number
+  }
+}
