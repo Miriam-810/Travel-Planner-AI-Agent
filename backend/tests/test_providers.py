@@ -116,3 +116,31 @@ def test_country_code_format(code):
 
     with pytest.raises(ValidationError):
         REQUEST.model_validate({**REQUEST.model_dump(mode="json"), "country": code})
+
+
+def test_theme_flows_from_outline_to_trip(tmp_path):
+    app.dependency_overrides[get_http_client] = lambda: FakeOpenMeteo().client()
+    app.dependency_overrides[get_registry] = sample_registry
+    app.dependency_overrides[get_limiter] = lambda: make_limiter(tmp_path)
+    try:
+        outline = {**outline_from_sample(), "theme": "snow"}
+        res = TestClient(app, headers=INVITE).post("/api/trips", json={"request": SAMPLE_REQUEST, "outline": outline})
+    finally:
+        app.dependency_overrides.clear()
+    assert res.json()["theme"] == "snow"
+
+
+def test_unknown_theme_is_rejected():
+    from pydantic import ValidationError
+
+    from app.models import TripOutline
+
+    with pytest.raises(ValidationError):
+        TripOutline.model_validate({**valid_outline(), "theme": "neon"})
+
+
+def test_submit_outline_requires_a_theme():
+    from app.agent.tools import SUBMIT_OUTLINE
+
+    schema = SUBMIT_OUTLINE["input_schema"]
+    assert "theme" in schema["required"] and "sage" in schema["properties"]["theme"]["enum"]

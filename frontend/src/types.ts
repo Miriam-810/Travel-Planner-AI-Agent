@@ -52,6 +52,8 @@ export interface Trip {
   id: string
   /** ISO 3166-1 alpha-2, e.g. "JP". Decides the map's region bias. */
   country: string
+  /** Colour palette picked by the AI, see lib/themes.ts. */
+  theme: string
   destination: string
   start_date: string
   end_date: string
@@ -103,6 +105,7 @@ export interface DayDraft {
 }
 
 export interface TripOutline {
+  theme: string
   days: DayDraft[]
 }
 

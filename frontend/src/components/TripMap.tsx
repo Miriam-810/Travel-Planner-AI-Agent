@@ -9,9 +9,9 @@ import {
 } from '@vis.gl/react-google-maps'
 import { useEffect, useMemo, useState } from 'react'
 import { MAP_ID, MAPS_API_KEY } from '../lib/mapsConfig'
+import { palette } from '../lib/themes'
 import type { Stop, Trip } from '../types'
 
-const CORAL = '#DB6A41'
 // Keep pins clear of the brand chip (top-left, measured from the DOM), the
 // overview button and the zoom control (right).
 function fitPadding(map: google.maps.Map): google.maps.Padding {
@@ -74,7 +74,7 @@ function MapContents({ trip, openDay, selectedStopId, onPickStop }: Props) {
       <Camera points={framePoints} focus={selected} />
 
       {visibleDays.map(({ day }) => (
-        <RouteLine key={day.date} path={day.stops.map(toLatLng)} active={openDay !== null} />
+        <RouteLine key={day.date} path={day.stops.map(toLatLng)} active={openDay !== null} theme={trip.theme} />
       ))}
 
       {visibleDays.map(({ day, index }) =>
@@ -127,10 +127,10 @@ function Camera({ points, focus }: { points: LatLng[]; focus: LatLng | null }) {
   return null
 }
 
-/** Dashed route between stops. The open day's route is coral and "marches". */
-function RouteLine({ path, active }: { path: LatLng[]; active: boolean }) {
+/** Dashed route between stops. The open day's route is the accent colour and "marches". */
+function RouteLine({ path, active, theme }: { path: LatLng[]; active: boolean; theme: string }) {
   const offset = useMarchingOffset(active)
-  const color = active ? CORAL : '#FFFFFF'
+  const color = active ? palette(theme).accentDeep : '#FFFFFF'
   return (
     <Polyline
       path={path}

@@ -35,6 +35,7 @@ async def build_trip(
     return Trip(
         id=uuid.uuid4().hex[:12],
         country=country.code,
+        theme=outline.theme,
         destination=request.destination,
         start_date=request.start_date,
         end_date=request.end_date,

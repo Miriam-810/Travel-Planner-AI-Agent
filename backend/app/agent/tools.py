@@ -85,6 +85,18 @@ SUBMIT_OUTLINE = {
     "input_schema": {
         "type": "object",
         "properties": {
+            "theme": {
+                "type": "string",
+                "enum": ["sage", "snow", "maple", "sakura", "ocean", "summer", "city"],
+                "description": (
+                    "Colour palette for the trip page, matching the destination and season: "
+                    "snow = red and white for snowy winter places (e.g. Aomori in December); "
+                    "maple = autumn leaves (e.g. Kyoto in November); sakura = cherry-blossom pink for spring; "
+                    "ocean = sea blue for islands and beaches (e.g. Miyakojima, Okinawa); "
+                    "summer = fresh green for summer mountains and countryside; "
+                    "city = evening blue for big cities (e.g. Tokyo, Osaka); sage = calm default when nothing fits."
+                ),
+            },
             "days": {
                 "type": "array",
                 "items": {
@@ -102,7 +114,7 @@ SUBMIT_OUTLINE = {
                 },
             }
         },
-        "required": ["days"],
+        "required": ["theme", "days"],
         "additionalProperties": False,
     },
 }

@@ -29,7 +29,11 @@ function message(err: unknown): string {
 }
 
 export default function App() {
-  const [session, setSession] = useState<Session>(() => ({ ...EMPTY_SESSION, ...load<Session>(KEYS.session) }))
+  const [session, setSession] = useState<Session>(() => {
+    const saved = load<Session>(KEYS.session)
+    // Older saves may lack newer draft fields (e.g. pace); fill them from the defaults.
+    return { ...EMPTY_SESSION, ...saved, draft: { ...EMPTY_DRAFT, ...saved?.draft } }
+  })
   const [view, setView] = useState<View>(session.view)
   const [inviteCode, setInviteCode] = useState(() => load<string>(KEYS.invite) ?? '')
   const [error, setError] = useState<string | null>(null)
@@ -171,6 +175,13 @@ export default function App() {
       error={error}
       onSubmit={generate}
       onShowSample={showSample}
+      onResume={
+        session.trip
+          ? { label: `回到上次的行程：${session.trip.destination}`, go: () => go('trip') }
+          : session.result && session.request
+            ? { label: `回到上次的大綱：${session.request.destination}`, go: () => go('review') }
+            : undefined
+      }
     />
   )
 }

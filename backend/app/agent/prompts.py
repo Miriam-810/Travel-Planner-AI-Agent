@@ -44,6 +44,7 @@ Good plans:
 - Prefer well-rated places (rating 4.0+ with a reasonable number of reviews) when there is a choice.
 - stay_min is realistic: 45–75 minutes for lunch, 60–90 for dinner, 30–120 for sights.
 - area_lat and area_lng are the centre of the day's main area.
+- Pick the theme that best fits the destination, the season and the weather you found.
 - Write title, area and note in Traditional Chinese (台灣用語). Keep notes to one short sentence.
 - Every stop name is '<short Traditional Chinese description>｜<the {country.local_language} name exactly as search_place returned it>', e.g. {examples}. The description tells a Taiwanese traveller what the place is; the {country.local_language} name is what they will see on the sign.
 """

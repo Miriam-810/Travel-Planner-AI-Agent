@@ -30,6 +30,10 @@ PLACE_ID_PATTERN = r"^[A-Za-z0-9_-]{1,300}$"
 Preference = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
 
 StopKind = Literal["sight", "meal", "shop"]
+
+# Colour palette for the outline and trip pages, picked by Claude from the
+# destination, season and weather. The palettes themselves live in the frontend.
+TripTheme = Literal["sage", "snow", "maple", "sakura", "ocean", "summer", "city"]
 MealType = Literal["lunch", "dinner"]
 
 
@@ -115,6 +119,7 @@ class DayDraft(BaseModel):
 
 
 class TripOutline(BaseModel):
+    theme: TripTheme = "sage"
     days: list[DayDraft] = Field(min_length=1, max_length=MAX_TRIP_DAYS)
 
 
@@ -166,6 +171,7 @@ class Day(BaseModel):
 class Trip(BaseModel):
     id: str
     country: CountryCode = "JP"
+    theme: TripTheme = "sage"
     destination: str
     start_date: date
     end_date: date

@@ -1,24 +1,29 @@
 @import 'tailwindcss';
 
-/* Design tokens from the 青森・函館 冬之島 page. Single light theme. */
+/* Soft sage palette: mist background, cream cards, sage actions. Single light theme. */
 @theme {
-  --color-paper: #fbf7f1;
-  --color-paper-2: #f4ece2;
-  --color-ink: #1e1a17;
-  --color-ink-soft: #6b625a;
-  --color-line: #e6dbcf;
-  --color-coral: #db6a41;
-  --color-coral-soft: #fbe7dd;
-  --color-coral-deep: #b24a25;
-  --color-sea: #7fafb2;
-  --color-sea-deep: #5d9195;
-  --color-ok: #2f6a43;
-  --color-ok-soft: #e8f1ea;
-  --color-ok-line: #cfe2d3;
+  --color-mist: #dfe5db;
+  --color-mist-deep: #d2dacd;
+  --color-cream: #faf8f3;
+  --color-field: #e4e9e0;
+  --color-ink: #2e3a2d;
+  --color-ink-soft: #6e7a6b;
+  --color-line: #d8dfd3;
+  --color-sage: #6e8b69;
+  --color-sage-deep: #4e6a4a;
+  --color-sage-soft: #e7eee3;
+  --color-lime: #cdeea0;
+  --color-apricot: #e59a6b;
+  --color-apricot-soft: #fbeee4;
+  --color-apricot-deep: #a2552b;
+  --color-ok: #3f7146;
+  --color-ok-soft: #e6f0e4;
 
-  --font-display: 'Fraunces', 'Noto Serif TC', Georgia, serif;
-  --font-body: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  --font-body: 'Quicksand', 'Huninn', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  --font-round: 'Huninn', 'Quicksand', 'PingFang TC', system-ui, sans-serif;
+
+  --shadow-card: 0 1px 0 rgba(46, 58, 45, 0.04), 0 22px 44px -26px rgba(46, 58, 45, 0.35);
+  --shadow-soft: 0 10px 24px -18px rgba(46, 58, 45, 0.45);
 }
 
 /* Base rules live in the base layer so Tailwind utilities can override them. */
@@ -29,11 +34,21 @@
 
   body {
     margin: 0;
-    background: var(--color-paper);
+    background: var(--color-mist);
     color: var(--color-ink);
     font-family: var(--font-body);
+    font-weight: 500;
     font-size: 15px;
-    line-height: 1.6;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Huninn has a single weight; keep Chinese from being smeared by faux bold. */
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-round);
+    font-weight: 400;
   }
 
   button {
@@ -43,8 +58,13 @@
   }
 
   :focus-visible {
-    outline: 2px solid var(--color-coral);
+    outline: 2px solid var(--color-sage);
     outline-offset: 2px;
+  }
+
+  input[type='date'],
+  input[type='time'] {
+    min-height: 2.75rem;
   }
 }
 
@@ -55,8 +75,8 @@
   height: 12px;
   border-radius: 50%;
   background: #fff;
-  border: 3px solid var(--color-coral);
-  box-shadow: 0 2px 6px -2px rgba(30, 26, 23, 0.5);
+  border: 3px solid var(--color-sage-deep);
+  box-shadow: 0 2px 6px -2px rgba(46, 58, 45, 0.5);
   cursor: pointer;
 }
 
@@ -66,13 +86,13 @@
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: var(--color-coral);
+  background: var(--color-sage);
   color: #fff;
   border: 2.5px solid #fff;
-  font-family: var(--font-mono);
+  font-family: 'Quicksand', sans-serif;
   font-weight: 700;
-  font-size: 12.5px;
-  box-shadow: 0 6px 14px -6px rgba(30, 26, 23, 0.6);
+  font-size: 13px;
+  box-shadow: 0 6px 14px -6px rgba(46, 58, 45, 0.6);
   cursor: pointer;
   transition: background 0.2s;
 }
@@ -80,6 +100,11 @@
 .map-pin.is-selected {
   background: var(--color-ink);
   animation: pin-hop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
 }
 
 @keyframes pin-hop {
