@@ -1,3 +1,4 @@
+import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { KindBadge } from '../components/Badges'
 import { ErrorBox, PrimaryButton, TextButton } from '../components/Form'
 import { Icon, type IconName } from '../components/Icon'
@@ -18,14 +19,13 @@ interface Props {
   onBack: () => void
 }
 
-/** Move a stop up or down. Time slots stay where they are; the stops trade places in them. */
+/** Move a stop to a new position. Time slots stay where they are; the stops shift through them. */
 function moveStop(day: DayDraft, from: number, to: number): DayDraft {
+  const slots = day.stops.map((s) => s.arrive)
   const stops = [...day.stops]
-  const a = stops[from]
-  const b = stops[to]
-  stops[from] = { ...b, arrive: a.arrive }
-  stops[to] = { ...a, arrive: b.arrive }
-  return { ...day, stops }
+  const [moved] = stops.splice(from, 1)
+  stops.splice(to, 0, moved)
+  return { ...day, stops: stops.map((s, i) => ({ ...s, arrive: slots[i] })) }
 }
 
 export function OutlineReview({ request, outline, edited, warnings, busy, error, onChange, onReset, onConfirm, onBack }: Props) {
@@ -78,44 +78,7 @@ export function OutlineReview({ request, outline, edited, warnings, busy, error,
               </span>
             </div>
 
-            <ol className="m-0 flex list-none flex-col p-0">
-              {day.stops.map((stop, si) => (
-                <li
-                  key={`${stop.place_id}-${si}`}
-                  className="grid grid-cols-[48px_1fr_auto] items-start gap-2 border-t border-line/70 py-3 first:border-t-0"
-                >
-                  <span className="pt-0.5 text-[14px] font-bold tabular-nums">{hhmm(stop.arrive)}</span>
-                  <span className="min-w-0">
-                    <span className="block font-[family-name:var(--font-round)] text-[15px] leading-snug">
-                      <KindBadge stop={stop} />
-                      {stop.name}
-                    </span>
-                    {stop.note && <span className="mt-0.5 block text-[13px] text-ink-soft">{stop.note}</span>}
-                    <span className="mt-0.5 block text-[12px] text-ink-soft">停留 {stop.stay_min} 分</span>
-                  </span>
-                  <span className="flex gap-1">
-                    <IconButton
-                      icon="up"
-                      label={`把「${stop.name}」往前移`}
-                      disabled={si === 0}
-                      onClick={() => updateDay(di, moveStop(day, si, si - 1))}
-                    />
-                    <IconButton
-                      icon="down"
-                      label={`把「${stop.name}」往後移`}
-                      disabled={si === day.stops.length - 1}
-                      onClick={() => updateDay(di, moveStop(day, si, si + 1))}
-                    />
-                    <IconButton
-                      icon="close"
-                      label={`刪除「${stop.name}」`}
-                      disabled={day.stops.length === 1}
-                      onClick={() => updateDay(di, { ...day, stops: day.stops.filter((_, j) => j !== si) })}
-                    />
-                  </span>
-                </li>
-              ))}
-            </ol>
+            <StopList day={day} onChange={(d) => updateDay(di, d)} />
           </li>
         ))}
       </ol>
@@ -134,11 +97,126 @@ export function OutlineReview({ request, outline, edited, warnings, busy, error,
             </PrimaryButton>
           </div>
           {edited && (
-            <p className="m-0 text-[12.5px] text-ink-soft">調整順序時時間不變，地點互換時段；營業時間會在下一步重新檢查。</p>
+            <p className="m-0 text-[12.5px] text-ink-soft">調整順序時時段不變，地點依新順序填入；營業時間會在下一步重新檢查。</p>
           )}
         </div>
       </div>
     </div>
+  )
+}
+
+interface Drag {
+  from: number
+  over: number
+  dy: number
+  height: number
+}
+
+/** One day's stops. Drag a row by its handle (or use the arrow keys on it) to reorder. */
+function StopList({ day, onChange }: { day: DayDraft; onChange: (day: DayDraft) => void }) {
+  const list = useRef<HTMLOListElement>(null)
+  const start = useRef({ y: 0, mids: [] as number[] })
+  const [drag, setDrag] = useState<Drag | null>(null)
+
+  const rows = () => [...(list.current?.children ?? [])] as HTMLElement[]
+
+  const onPointerDown = (e: PointerEvent<HTMLButtonElement>, i: number) => {
+    if (e.button !== 0) return
+    e.preventDefault() // no text selection or scrolling while dragging; that also skips focus, so focus by hand
+    e.currentTarget.focus()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const rects = rows().map((r) => r.getBoundingClientRect())
+    start.current = { y: e.clientY, mids: rects.map((r) => r.top + r.height / 2) }
+    setDrag({ from: i, over: i, dy: 0, height: rects[i].height })
+  }
+
+  const onPointerMove = (e: PointerEvent<HTMLButtonElement>) => {
+    if (!drag) return
+    const { y, mids } = start.current
+    const dy = e.clientY - y
+    const centre = mids[drag.from] + dy
+    let over = drag.from
+    mids.forEach((m, k) => {
+      if (k > drag.from && centre > m) over = k
+      if (k < drag.from && centre < m && over >= drag.from) over = k
+    })
+    setDrag({ ...drag, dy, over })
+  }
+
+  const onPointerUp = () => {
+    if (drag && drag.over !== drag.from) onChange(moveStop(day, drag.from, drag.over))
+    setDrag(null)
+  }
+
+  const onKeyDown = (e: KeyboardEvent<HTMLButtonElement>, i: number) => {
+    const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : null
+    if (to === null || to < 0 || to >= day.stops.length) return
+    e.preventDefault()
+    onChange(moveStop(day, i, to))
+    requestAnimationFrame(() => rows()[to]?.querySelector<HTMLButtonElement>('[data-grip]')?.focus())
+  }
+
+  const shift = (i: number) => {
+    if (!drag || i === drag.from) return 0
+    if (drag.from < i && i <= drag.over) return -drag.height
+    if (drag.over <= i && i < drag.from) return drag.height
+    return 0
+  }
+
+  return (
+    <ol ref={list} className="m-0 flex list-none flex-col p-0">
+      {day.stops.map((stop, si) => {
+        const dragging = drag?.from === si
+        return (
+          <li
+            key={`${stop.place_id}-${stop.name}`}
+            style={{ transform: `translateY(${dragging ? drag.dy : shift(si)}px)` }}
+            className={`relative grid grid-cols-[48px_1fr_auto] items-start gap-2 border-t border-line/70 py-3 first:border-t-0 ${
+              dragging
+                ? 'z-10 rounded-2xl border-transparent bg-cream shadow-[var(--shadow-card)]'
+                : drag
+                  ? 'transition-transform duration-150'
+                  : ''
+            }`}
+          >
+            <span className="pt-0.5 text-[14px] font-bold tabular-nums">{hhmm(stop.arrive)}</span>
+            <span className="min-w-0">
+              <span className="block font-[family-name:var(--font-round)] text-[15px] leading-snug">
+                <KindBadge stop={stop} />
+                {stop.name}
+              </span>
+              {stop.note && <span className="mt-0.5 block text-[13px] text-ink-soft">{stop.note}</span>}
+              <span className="mt-0.5 block text-[12px] text-ink-soft">停留 {stop.stay_min} 分</span>
+            </span>
+            <span className="flex gap-1">
+              <button
+                type="button"
+                data-grip
+                aria-label={`拖曳「${stop.name}」調整順序，也可用上下鍵`}
+                title="拖曳調整順序"
+                disabled={day.stops.length === 1}
+                onPointerDown={(e) => onPointerDown(e, si)}
+                onPointerMove={onPointerMove}
+                onPointerUp={onPointerUp}
+                onPointerCancel={() => setDrag(null)}
+                onKeyDown={(e) => onKeyDown(e, si)}
+                className={`grid size-9 touch-none place-items-center rounded-xl border-0 bg-field text-ink-soft transition-colors hover:bg-sage hover:text-white disabled:cursor-default disabled:opacity-30 disabled:hover:bg-field disabled:hover:text-ink-soft ${
+                  dragging ? 'cursor-grabbing bg-sage text-white' : 'cursor-grab'
+                }`}
+              >
+                <Icon name="grip" size={16} />
+              </button>
+              <IconButton
+                icon="close"
+                label={`刪除「${stop.name}」`}
+                disabled={day.stops.length === 1}
+                onClick={() => onChange({ ...day, stops: day.stops.filter((_, j) => j !== si) })}
+              />
+            </span>
+          </li>
+        )
+      })}
+    </ol>
   )
 }
 

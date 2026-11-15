@@ -3,6 +3,12 @@
 export type StopKind = 'sight' | 'meal' | 'shop'
 export type MealType = 'lunch' | 'dinner'
 
+/** What the stop looks like on the trip island (backend SceneKind). Older trips have none. */
+export type SceneKind =
+  | 'ramen' | 'seafood' | 'cafe' | 'restaurant'
+  | 'shrine' | 'temple' | 'castle' | 'onsen' | 'museum' | 'park' | 'nature' | 'viewpoint' | 'beach' | 'street'
+  | 'market' | 'shop' | 'station' | 'landmark'
+
 export interface Weather {
   source: 'forecast' | 'climate_avg'
   high_c: number
@@ -25,6 +31,7 @@ export interface Stop {
   id: string
   name: string
   kind: StopKind
+  scene?: SceneKind
   meal: MealType | null
   place_id: string
   /** "HH:MM:SS" */
@@ -87,6 +94,7 @@ export interface TripRequest {
 export interface StopDraft {
   name: string
   kind: StopKind
+  scene?: SceneKind
   meal: MealType | null
   place_id: string
   /** "HH:MM" or "HH:MM:SS" */

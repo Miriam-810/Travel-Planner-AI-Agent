@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { ApiError, buildTrip, createOutline, fetchSampleTrip } from './api'
 import { ErrorBox, GhostButton } from './components/Form'
+import { GlobeHero } from './components/GlobeHero'
+import { loadLibrary, storeLibrary, withoutTrip, withTrip } from './lib/library'
 import { KEYS, load, save } from './lib/storage'
 import { Generating } from './pages/Generating'
 import { OutlineReview } from './pages/OutlineReview'
@@ -18,10 +20,21 @@ interface Session {
   request: TripRequest | null
   result: OutlineResponse | null
   outline: TripOutline | null
+  /** The trip on screen; may be one opened from the globe rather than the one built from the outline. */
   trip: Trip | null
+  /** Id of the trip built from the current outline, so "back to outline" only shows for that trip. */
+  outlineTripId: string | null
 }
 
-const EMPTY_SESSION: Session = { view: 'form', draft: EMPTY_DRAFT, request: null, result: null, outline: null, trip: null }
+const EMPTY_SESSION: Session = {
+  view: 'form',
+  draft: EMPTY_DRAFT,
+  request: null,
+  result: null,
+  outline: null,
+  trip: null,
+  outlineTripId: null,
+}
 
 function message(err: unknown): string {
   if (err instanceof ApiError) return err.message
@@ -32,7 +45,17 @@ export default function App() {
   const [session, setSession] = useState<Session>(() => {
     const saved = load<Session>(KEYS.session)
     // Older saves may lack newer draft fields (e.g. pace); fill them from the defaults.
-    return { ...EMPTY_SESSION, ...saved, draft: { ...EMPTY_DRAFT, ...saved?.draft } }
+    return {
+      ...EMPTY_SESSION,
+      ...saved,
+      draft: { ...EMPTY_DRAFT, ...saved?.draft },
+      outlineTripId: saved?.outlineTripId ?? saved?.trip?.id ?? null,
+    }
+  })
+  // Every trip planned on this device; a trip saved before the library existed joins it.
+  const [library, setLibrary] = useState(() => {
+    const list = loadLibrary()
+    return session.trip && !list.some((e) => e.trip.id === session.trip?.id) ? withTrip(list, session.trip) : list
   })
   const [view, setView] = useState<View>(session.view)
   const [inviteCode, setInviteCode] = useState(() => load<string>(KEYS.invite) ?? '')
@@ -44,6 +67,9 @@ export default function App() {
   useEffect(() => {
     save(KEYS.session, session)
   }, [session])
+  useEffect(() => {
+    storeLibrary(library)
+  }, [library])
   useEffect(() => {
     save(KEYS.invite, inviteCode.trim() || null)
   }, [inviteCode])
@@ -89,7 +115,8 @@ export default function App() {
     setError(null)
     try {
       const trip = await buildTrip(session.request, session.outline, inviteCode.trim())
-      update({ trip, view: 'trip' })
+      update({ trip, outlineTripId: trip.id, view: 'trip' })
+      setLibrary((list) => withTrip(list, trip))
       setView('trip')
     } catch (err) {
       setError(message(err))
@@ -107,6 +134,18 @@ export default function App() {
     } catch (err) {
       setError(message(err))
     }
+  }
+
+  const openTrip = (id: string) => {
+    const saved = library.find((e) => e.trip.id === id)
+    if (!saved) return
+    update({ trip: saved.trip })
+    go('trip')
+  }
+
+  const removeTrip = (id: string) => {
+    setLibrary((list) => withoutTrip(list, id))
+    if (session.trip?.id === id) update({ trip: null })
   }
 
   const startOver = () => {
@@ -139,7 +178,10 @@ export default function App() {
     return (
       <>
         <TopBar>
-          <GhostButton onClick={() => go('review')}>← 回到大綱</GhostButton>
+          <GhostButton onClick={() => go('form')}>← 回到地球</GhostButton>
+          {session.outline && session.outlineTripId === session.trip.id && (
+            <GhostButton onClick={() => go('review')}>回到大綱</GhostButton>
+          )}
           <GhostButton onClick={startOver}>規劃新行程</GhostButton>
         </TopBar>
         <TripPage trip={session.trip} />
@@ -175,12 +217,11 @@ export default function App() {
       error={error}
       onSubmit={generate}
       onShowSample={showSample}
+      globe={<GlobeHero trips={library} onOpen={openTrip} onRemove={removeTrip} />}
       onResume={
-        session.trip
-          ? { label: `回到上次的行程：${session.trip.destination}`, go: () => go('trip') }
-          : session.result && session.request
-            ? { label: `回到上次的大綱：${session.request.destination}`, go: () => go('review') }
-            : undefined
+        session.result && session.request && session.outlineTripId === null
+          ? { label: `回到上次的大綱：${session.request.destination}`, go: () => go('review') }
+          : undefined
       }
     />
   )

@@ -7,8 +7,9 @@ are enforced in code (clamping, or the Pydantic models in app.models).
 
 import json
 from datetime import date
+from typing import get_args
 
-from app.models import Weather
+from app.models import SceneKind, Weather
 from app.providers.base import Place
 
 TIME_PATTERN = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
@@ -62,6 +63,17 @@ _STOP = {
     "properties": {
         "name": {"type": "string", "description": "'<short Traditional Chinese description>｜<local name exactly as search_place returned it>'"},
         "kind": {"type": "string", "enum": ["sight", "meal", "shop"]},
+        "scene": {
+            "type": "string",
+            "enum": list(get_args(SceneKind)),
+            "description": (
+                "Which little scene draws this stop on the trip island: ramen (any noodle shop), seafood (sushi, "
+                "kaisen-don, izakaya), cafe (coffee, sweets), restaurant (other meals), shrine, temple, castle, "
+                "onsen, museum (also galleries, visitor centres), park (gardens), nature (gorge, waterfall, "
+                "mountain, lake), viewpoint (tower, ropeway, night view), beach (also ports), street (old streets, "
+                "slopes, warehouses), market, shop (malls, stores), station (also airports), landmark (anything else)"
+            ),
+        },
         "meal": {
             "anyOf": [{"type": "string", "enum": ["lunch", "dinner"]}, {"type": "null"}],
             "description": "'lunch' or 'dinner' for meal stops, null otherwise",
@@ -71,7 +83,7 @@ _STOP = {
         "stay_min": {"type": "integer", "description": "Minutes spent at the stop, 15–480"},
         "note": {"type": "string", "description": "One short sentence in Traditional Chinese (under 100 characters): why go, or what to order"},
     },
-    "required": ["name", "kind", "meal", "place_id", "arrive", "stay_min", "note"],
+    "required": ["name", "kind", "scene", "meal", "place_id", "arrive", "stay_min", "note"],
     "additionalProperties": False,
 }
 

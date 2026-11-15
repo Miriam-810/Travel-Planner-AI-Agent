@@ -33,6 +33,12 @@ StopKind = Literal["sight", "meal", "shop"]
 
 # Colour palette for the outline and trip pages, picked by Claude from the
 # destination, season and weather. The palettes themselves live in the frontend.
+SceneKind = Literal[
+    "ramen", "seafood", "cafe", "restaurant",
+    "shrine", "temple", "castle", "onsen", "museum", "park", "nature", "viewpoint", "beach", "street",
+    "market", "shop", "station", "landmark",
+]
+"""What the stop looks like on the trip island. Picked by Claude; old outlines without it get 'landmark'."""
 TripTheme = Literal["sage", "snow", "maple", "sakura", "ocean", "summer", "city"]
 MealType = Literal["lunch", "dinner"]
 
@@ -94,6 +100,7 @@ class TripRequest(BaseModel):
 class StopDraft(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     kind: StopKind
+    scene: SceneKind = "landmark"
     meal: MealType | None = Field(None, description="Required when kind is 'meal'")
     place_id: str = Field(pattern=PLACE_ID_PATTERN, description="Must come from a search_place result")
     arrive: time

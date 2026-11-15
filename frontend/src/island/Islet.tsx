@@ -1,17 +1,21 @@
-// One floating islet for one day of the trip: grass top, rock underside, a few
-// trees in the trip's palette, stepping stones linking the day's stops, and
-// numbered pins when the day is open.
+// One floating islet for one day of the trip: grass top, rock underside, a
+// little scene for every stop (ramen shop, shrine, castle…), stepping stones
+// between them, trees in the trip's palette, and numbered badges when open.
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { Day } from '../types'
 import { rockGeometry, outline, topGeometry } from './geometry'
-import { ISLET_RADIUS, stopSpots } from './layout'
+import { freeSpot, ISLET_RADIUS, sceneScale, stopSpots } from './layout'
 import { badgeTexture } from './labels'
 import type { Palette3D } from './palette3d'
 import { seeded } from './random'
+import { PIECE_HEIGHT, sceneOf } from './sceneKinds'
+import { ScenePiece } from './scenes'
 
 const TOP = 0.35
+/** Scene pieces are modelled at ~0.6 wide; drawn a bit larger so they read from afar. */
+const PIECE_SCALE = 1.3
 
 interface Props {
   day: Day
@@ -36,22 +40,34 @@ export function Islet({ day, index, position, pal, open, faded, selectedStopId, 
   const shape = useMemo(() => {
     const rand = seeded(day.date)
     const radii = outline(rand, ISLET_RADIUS)
-    const spots = stopSpots(day.stops.length)
-    // Trees go where there is no stop, near the rim.
+    const spots = stopSpots(day)
+    const hasHouse = Boolean(day.lodging)
+    // The lodging house (or a pond) takes the most open patch of grass.
+    const [hx, hz] = freeSpot(spots)
+    // Trees go where there is no scene and no house.
     const trees: { x: number; z: number; s: number; c: string }[] = []
     for (let tries = 0; trees.length < 7 && tries < 60; tries++) {
       const a = rand() * Math.PI * 2
-      const r = ISLET_RADIUS * (0.35 + rand() * 0.5)
+      const r = ISLET_RADIUS * (0.2 + rand() * 0.68)
       const x = Math.cos(a) * r
       const z = Math.sin(a) * r
-      const clear = spots.every(([sx, sz]) => Math.hypot(sx - x, sz - z) > 0.55) && trees.every((t) => Math.hypot(t.x - x, t.z - z) > 0.4)
+      const clear =
+        spots.every(([sx, sz]) => Math.hypot(sx - x, sz - z) > 0.55 && !(z > sz && z - sz < 1 && Math.abs(x - sx) < 0.45)) &&
+        !(hasHouse && z > hz && z - hz < 1 && Math.abs(x - hx) < 0.45) &&
+        Math.hypot(x - hx, z - hz) > (hasHouse ? 0.5 : 0.62) &&
+        trees.every((t) => Math.hypot(t.x - x, t.z - z) > 0.4)
+      // (the extra spot test keeps trees from standing right in front of a scene)
       if (clear) trees.push({ x, z, s: 0.75 + rand() * 0.5, c: pal.leaves[Math.floor(rand() * pal.leaves.length)] })
     }
     const stones: [number, number][] = []
     for (let i = 0; i < spots.length - 1; i++) {
       const [ax, az] = spots[i]
       const [bx, bz] = spots[i + 1]
-      for (let t = 0.25; t < 0.8; t += 0.25) stones.push([ax + (bx - ax) * t, az + (bz - az) * t])
+      const len = Math.hypot(bx - ax, bz - az)
+      for (let t = 0.1; t < 0.95; t += 0.14) {
+        const along = t * len
+        if (along > 0.42 && len - along > 0.42) stones.push([ax + (bx - ax) * t, az + (bz - az) * t])
+      }
     }
     return {
       top: topGeometry(radii, TOP),
@@ -60,9 +76,11 @@ export function Islet({ day, index, position, pal, open, faded, selectedStopId, 
       trees,
       stones,
       phase: rand() * Math.PI * 2,
-      pond: rand() > 0.45 ? { x: (rand() - 0.5) * 0.8, z: ISLET_RADIUS * 0.15 + rand() * 0.3 } : null,
+      home: [hx, hz] as const,
+      pond: !hasHouse && rand() > 0.3,
+      pieceScale: PIECE_SCALE * sceneScale(day.stops.length),
     }
-  }, [day.date, day.stops.length, pal])
+  }, [day, pal])
 
   useFrame(({ clock }) => {
     if (!group.current || reducedMotion) return
@@ -94,7 +112,7 @@ export function Islet({ day, index, position, pal, open, faded, selectedStopId, 
         </mesh>
 
         {shape.pond && (
-          <mesh position={[shape.pond.x, TOP + 0.01, shape.pond.z]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh position={[shape.home[0], TOP + 0.01, shape.home[1]]} rotation={[-Math.PI / 2, 0, 0]}>
             <circleGeometry args={[0.38, 7]} />
             <meshStandardMaterial color={pal.water} transparent opacity={0.9 * opacity} />
           </mesh>
@@ -111,7 +129,26 @@ export function Islet({ day, index, position, pal, open, faded, selectedStopId, 
           </mesh>
         ))}
 
-        {day.lodging && <House x={-ISLET_RADIUS * 0.15} z={ISLET_RADIUS * 0.6} pal={pal} opacity={opacity} />}
+        {day.lodging && <House x={shape.home[0]} z={shape.home[1]} pal={pal} opacity={opacity} />}
+
+        {day.stops.map((stop, i) => {
+          const [x, z] = shape.spots[i]
+          const selected = open && stop.id === selectedStopId
+          return (
+            <group
+              key={stop.id}
+              position={[x, TOP, z]}
+              scale={shape.pieceScale * (selected ? 1.15 : 1)}
+              onClick={(e) => {
+                if (!open) return // let the click open the day
+                e.stopPropagation()
+                onPickStop(index, stop.id)
+              }}
+            >
+              <ScenePiece kind={sceneOf(stop)} pal={pal} opacity={opacity} reducedMotion={reducedMotion} />
+            </group>
+          )
+        })}
       </group>
 
       {!open && (
@@ -124,29 +161,30 @@ export function Islet({ day, index, position, pal, open, faded, selectedStopId, 
         day.stops.map((stop, i) => {
           const [x, z] = shape.spots[i]
           const selected = stop.id === selectedStopId
+          // The badge floats over the scene on a thin stick.
+          const top = TOP + PIECE_HEIGHT[sceneOf(stop)] * shape.pieceScale * (selected ? 1.15 : 1)
+          const stick = 0.1
+          const y = top + stick + 0.16
           return (
-            <group
-              key={stop.id}
-              position={[x, TOP, z]}
-              onClick={(e) => {
-                e.stopPropagation()
-                onPickStop(index, stop.id)
-              }}
-              onPointerOver={(e) => {
-                e.stopPropagation()
-                pointer(true)
-              }}
-              onPointerOut={() => pointer(false)}
-            >
-              <mesh position={[0, 0.03, 0]}>
-                <cylinderGeometry args={[0.16, 0.18, 0.06, 8]} />
-                <meshStandardMaterial color={selected ? pal.ink : pal.accent} flatShading />
+            <group key={stop.id}>
+              <mesh position={[x, top + stick / 2, z]}>
+                <cylinderGeometry args={[0.012, 0.012, stick, 4]} />
+                <meshStandardMaterial color={selected ? pal.ink : pal.accent} />
               </mesh>
-              <mesh position={[0, 0.4, 0]}>
-                <cylinderGeometry args={[0.02, 0.02, 0.7, 5]} />
-                <meshStandardMaterial color={pal.ink} />
-              </mesh>
-              <sprite position={[0, selected ? 0.98 : 0.88, 0]} scale={selected ? [0.62, 0.62, 0.62] : [0.48, 0.48, 0.48]}>
+              <sprite
+                position={[x, y, z]}
+                scale={selected ? [0.48, 0.48, 0.48] : [0.36, 0.36, 0.36]}
+                renderOrder={10}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPickStop(index, stop.id)
+                }}
+                onPointerOver={(e) => {
+                  e.stopPropagation()
+                  pointer(true)
+                }}
+                onPointerOut={() => pointer(false)}
+              >
                 <spriteMaterial map={badgeTexture(String(i + 1), selected ? pal.ink : pal.accent)} depthTest={false} />
               </sprite>
             </group>

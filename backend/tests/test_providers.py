@@ -144,3 +144,17 @@ def test_submit_outline_requires_a_theme():
 
     schema = SUBMIT_OUTLINE["input_schema"]
     assert "theme" in schema["required"] and "sage" in schema["properties"]["theme"]["enum"]
+
+
+def test_submit_outline_requires_a_scene_per_stop():
+    from app.agent.tools import SUBMIT_OUTLINE
+
+    stop = SUBMIT_OUTLINE["input_schema"]["properties"]["days"]["items"]["properties"]["stops"]["items"]
+    assert "scene" in stop["required"] and "ramen" in stop["properties"]["scene"]["enum"]
+
+
+def test_stop_without_scene_defaults_to_landmark():
+    from app.models import StopDraft
+
+    s = StopDraft.model_validate({"name": "x", "kind": "sight", "place_id": "p1", "arrive": "10:00", "stay_min": 30})
+    assert s.scene == "landmark"

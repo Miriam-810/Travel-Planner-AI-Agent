@@ -6,14 +6,13 @@ import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { Trip } from '../types'
 import { Islet } from './Islet'
-import { ISLET_RADIUS } from './layout'
+import { dayPositions, ISLET_RADIUS } from './layout'
 import { palette3d, type Palette3D } from './palette3d'
 import { seeded } from './random'
 
-const SPACING = 5.6
 const FOV = 35
 const OVERVIEW_TILT = THREE.MathUtils.degToRad(48)
-const DAY_TILT = THREE.MathUtils.degToRad(42)
+const DAY_TILT = THREE.MathUtils.degToRad(54)
 
 interface Props {
   trip: Trip
@@ -50,24 +49,10 @@ export default function IslandScene(props: Props) {
   )
 }
 
-/** Islet centres in visiting order: one row for short trips, a snake of rows otherwise. */
-function layout(count: number, aspect: number): [number, number, number][] {
-  const cols = aspect < 1 ? 2 : count <= 4 ? count : Math.ceil(count / 2)
-  const rows = Math.ceil(count / cols)
-  return Array.from({ length: count }, (_, i) => {
-    const row = Math.floor(i / cols)
-    const inRow = i % cols
-    const col = row % 2 === 0 ? inRow : cols - 1 - inRow
-    const x = (col - (cols - 1) / 2) * SPACING
-    const z = (row - (rows - 1) / 2) * SPACING * 0.95 + (col % 2 === 0 ? -0.5 : 0.5)
-    return [x, 0, z]
-  })
-}
-
 function Scene({ trip, openDay, selectedStopId, onPickDay, onPickStop, pal }: Props & { pal: Palette3D }) {
   const { size } = useThree()
   const aspect = size.width / Math.max(size.height, 1)
-  const positions = useMemo(() => layout(trip.days.length, aspect), [trip.days.length, aspect])
+  const positions = useMemo(() => dayPositions(trip.days, trip.id), [trip.days, trip.id])
   const reducedMotion = useMemo(() => prefersReducedMotion(), [])
 
   return (
@@ -143,12 +128,15 @@ function Clouds({ positions, reducedMotion, seed }: { positions: [number, number
   const clouds = useMemo(() => {
     const rand = seeded(seed)
     const xs = positions.map((p) => p[0])
+    const zs = positions.map((p) => p[2])
     const minX = Math.min(...xs) - 4
-    const span = Math.max(...xs) + 4 - minX
-    return Array.from({ length: 5 }, () => ({
-      x: minX + rand() * span,
+    const spanX = Math.max(...xs) + 4 - minX
+    const minZ = Math.min(...zs) - 2
+    const spanZ = Math.max(...zs) + 2 - minZ
+    return Array.from({ length: Math.max(5, positions.length) }, () => ({
+      x: minX + rand() * spanX,
       y: -1.6 - rand() * 1.4,
-      z: (rand() - 0.5) * 10,
+      z: minZ + rand() * spanZ,
       s: 0.6 + rand() * 0.7,
     }))
   }, [positions, seed])
@@ -198,8 +186,8 @@ function CameraRig({
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect)
     if (openDay !== null && positions[openDay]) {
       const [x, , z] = positions[openDay]
-      const span = ISLET_RADIUS * 2 + 1.2
-      const dist = Math.max(span / (2 * Math.tan(hfov / 2)), span / (2 * Math.tan(vfov / 2))) * 1.02
+      const span = ISLET_RADIUS * 2 + 0.4
+      const dist = Math.max(span / (2 * Math.tan(hfov / 2)), span / (2 * Math.tan(vfov / 2))) * 0.95
       const target = new THREE.Vector3(x, 0.3, z)
       const pos = target.clone().add(new THREE.Vector3(0, Math.sin(DAY_TILT) * dist, Math.cos(DAY_TILT) * dist))
       return { pos, target }
@@ -207,10 +195,10 @@ function CameraRig({
     const xs = positions.map((p) => p[0])
     const zs = positions.map((p) => p[2])
     const width = Math.max(...xs) - Math.min(...xs) + ISLET_RADIUS * 2.6
-    const depth = (Math.max(...zs) - Math.min(...zs) + ISLET_RADIUS * 2.6) * Math.sin(OVERVIEW_TILT) + 3
+    const depth = (Math.max(...zs) - Math.min(...zs) + ISLET_RADIUS * 2.6) * Math.sin(OVERVIEW_TILT) + 4
     const dist = Math.max(width / (2 * Math.tan(hfov / 2)), depth / (2 * Math.tan(vfov / 2))) * 1.15
     // Aim a little behind the middle so the islets sit lower, clear of the title card at the top.
-    const target = new THREE.Vector3((Math.max(...xs) + Math.min(...xs)) / 2, 0.6, (Math.max(...zs) + Math.min(...zs)) / 2 - 1.4)
+    const target = new THREE.Vector3((Math.max(...xs) + Math.min(...xs)) / 2, 0.6, (Math.max(...zs) + Math.min(...zs)) / 2 - 0.6)
     const pos = target.clone().add(new THREE.Vector3(0, Math.sin(OVERVIEW_TILT) * dist, Math.cos(OVERVIEW_TILT) * dist))
     return { pos, target }
   }, [positions, openDay, aspect])

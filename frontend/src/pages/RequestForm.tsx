@@ -64,6 +64,8 @@ interface Props {
   onShowSample: () => void
   /** Set when a previous outline or trip is saved, to go back to it. */
   onResume?: { label: string; go: () => void }
+  /** The globe of planned trips, shown above the questions. */
+  globe?: ReactNode
 }
 
 interface Step {
@@ -75,7 +77,7 @@ interface Step {
   body: ReactNode
 }
 
-export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, error, onSubmit, onShowSample, onResume }: Props) {
+export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, error, onSubmit, onShowSample, onResume, globe }: Props) {
   const [customPref, setCustomPref] = useState('')
   const [quota, setQuota] = useState<string | null>(null)
   const [inviteError, setInviteError] = useState<string | null>(null)
@@ -440,6 +442,8 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
         <h1 className="m-0 mt-2 text-[26px] leading-tight text-ink">旅程小島</h1>
         <p className="m-0 mt-1 text-[15px] text-ink-soft">回答幾個問題，幫你排好日本自由行</p>
       </header>
+
+      {globe}
 
       <form onSubmit={next} noValidate className="relative">
         {/* A second sheet peeking out behind the card. */}
