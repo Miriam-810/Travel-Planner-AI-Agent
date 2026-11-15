@@ -1,0 +1,28 @@
+{
+  "variant": "light",
+  "backgroundColor": "#FBF7F1",
+  "styles": [
+    {
+      "id": "natural.land",
+      "geometry": { "fillColor": "#FBF7F1" }
+    },
+    {
+      "id": "natural.water",
+      "geometry": { "fillColor": "#9CC4C5" },
+      "label": { "textFillColor": "#3E6F73" }
+    },
+    {
+      "id": "infrastructure.roadNetwork.road",
+      "geometry": { "fillColor": "#FFFFFF", "strokeColor": "#E6DBCF" },
+      "label": { "textFillColor": "#6B625A" }
+    },
+    {
+      "id": "pointOfInterest",
+      "label": { "visible": false }
+    },
+    {
+      "id": "political",
+      "label": { "textFillColor": "#6B625A" }
+    }
+  ]
+}

@@ -4,7 +4,7 @@
 
 <!-- TODO（步驟 8）：demo 截圖或 GIF -->
 
-> **目前進度**：第一階段 MVP 開發中，已完成步驟 3（行程頁，尚未加地圖）／9。詳見 [實作計畫](docs/PLAN.md)。
+> **目前進度**：第一階段 MVP 開發中，已完成步驟 4（地圖和連動）／9。詳見 [實作計畫](docs/PLAN.md)。
 
 ## 功能
 
@@ -48,7 +48,7 @@
 
 | Key | 用途 | 從哪個步驟開始需要 | 申請位置 |
 | --- | --- | --- | --- |
-| Google Maps JavaScript API key＋Map ID | 前端顯示地圖 | 步驟 4 | Google Cloud Console |
+| Google Maps JavaScript API key＋Map ID | 前端顯示地圖 | 步驟 4 | Google Cloud Console，見 [Google 地圖設定教學](docs/GOOGLE_MAPS_SETUP.md) |
 | Google Places API (New) key | 查店家、景點的座標和營業時間 | 步驟 6 | Google Cloud Console |
 | Anthropic API key | 讓 Claude 排行程 | 步驟 7 | Anthropic Console |
 
@@ -82,6 +82,8 @@ npm run dev
 ```
 
 打開 <http://localhost:5173>，會看到範例行程頁。
+
+要顯示 Google 地圖，先照 [Google 地圖設定教學](docs/GOOGLE_MAPS_SETUP.md) 準備 key 和 Map ID，放進 `frontend/.env.local`，再重新啟動前端。沒設定時，地圖區塊會顯示提示文字，其他功能照常可用。
 
 ### 測試
 

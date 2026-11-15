@@ -14,6 +14,8 @@ export function StopRow({ stop, index, selected, onSelect }: Props) {
     <li>
       <div
         id={`stop-${stop.id}`}
+        // Land below the sticky map when scrolled into view from a pin click.
+        style={{ scrollMarginTop: 'calc(clamp(240px, 40vh, 420px) + 32px)' }}
         role="button"
         tabIndex={0}
         aria-pressed={selected}

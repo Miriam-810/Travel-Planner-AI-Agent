@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DayItem } from '../components/DayItem'
 import { MapPanel } from '../components/MapPanel'
 import type { Trip } from '../types'
@@ -7,6 +7,8 @@ export function TripPage({ trip }: { trip: Trip }) {
   // One day open at a time; null = overview with every day collapsed.
   const [openDay, setOpenDay] = useState<number | null>(null)
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null)
+  // Set when a map pin is clicked, so the matching row scrolls into view after render.
+  const scrollToStop = useRef<string | null>(null)
 
   const toggleDay = (i: number) => {
     setOpenDay((cur) => (cur === i ? null : i))
@@ -18,13 +20,32 @@ export function TripPage({ trip }: { trip: Trip }) {
     setSelectedStopId(null)
   }
 
+  const pickStopOnMap = (dayIndex: number, stopId: string) => {
+    setOpenDay(dayIndex)
+    setSelectedStopId(stopId)
+    scrollToStop.current = stopId
+  }
+
+  useEffect(() => {
+    const id = scrollToStop.current
+    if (!id || id !== selectedStopId) return
+    scrollToStop.current = null
+    document.getElementById(`stop-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [openDay, selectedStopId])
+
   const stopCount = trip.days.reduce((n, d) => n + d.stops.length, 0)
 
   return (
     <div className="mx-auto max-w-[880px] px-4 pb-16 sm:px-6">
       {/* Map stays on screen while the itinerary scrolls underneath. */}
       <div className="sticky top-0 z-20 -mx-4 bg-paper px-4 pt-3 pb-3 sm:-mx-6 sm:px-6 sm:pt-5">
-        <MapPanel trip={trip} onOverview={showOverview} />
+        <MapPanel
+          trip={trip}
+          openDay={openDay}
+          selectedStopId={selectedStopId}
+          onPickStop={pickStopOnMap}
+          onOverview={showOverview}
+        />
       </div>
 
       <header className="mt-4 mb-3 px-1">
