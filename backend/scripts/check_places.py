@@ -13,7 +13,8 @@ from datetime import date, time
 import httpx2
 
 from app.config import get_settings
-from app.tools.places import PlacesError, search_place
+from app.providers.base import PlacesError
+from app.providers.japan import JAPAN, japan_providers
 
 
 async def main() -> None:
@@ -30,13 +31,13 @@ async def main() -> None:
 
     async with httpx2.AsyncClient() as client:
         try:
-            places = await search_place(query, lat, lng, client=client, api_key=key)
+            places = await japan_providers(client, key).places.search(query, lat, lng, radius_m=3000)
         except PlacesError as exc:
             sys.exit(f"failed: {exc}")
 
     print(f"「{query}」 {day} {arrive:%H:%M} 抵達、停留 60 分：")
     for p in places:
-        h = p.hours_on(day, arrive, 60)
+        h = p.hours_on(day, arrive, 60, today=JAPAN.today())
         mark = {True: "✓ 營業中", False: "⚠ 營業時間外", None: "無營業時間資料"}[h.open_at_arrive]
         rating = f"★{p.rating} ({p.rating_count})" if p.rating else ""
         print(f"- {p.name}  {rating}\n  {p.address}\n  當天 {h.today_text or '—'}  {mark}  {p.business_status}\n  {p.place_id}")

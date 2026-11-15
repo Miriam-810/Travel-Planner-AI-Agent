@@ -4,7 +4,8 @@ from datetime import date, time
 from types import SimpleNamespace
 
 from app.models import TripRequest
-from app.tools.places import Place
+from app.providers.base import Place, Providers
+from app.providers.japan import JAPAN
 
 TODAY = date(2026, 11, 15)
 
@@ -89,8 +90,23 @@ class FakeLLM:
         return self.responses.pop(0)
 
 
-async def fake_search(query, lat, lng, radius_m):
-    return [PLACES[query]] if query in PLACES else []
+class FakePlaceProvider:
+    """Searching for a place's id finds exactly that place."""
+
+    def __init__(self, error: Exception | None = None):
+        self.error = error
+
+    async def search(self, query, lat, lng, *, radius_m):
+        if self.error:
+            raise self.error
+        return [PLACES[query]] if query in PLACES else []
+
+    async def get(self, place_id):
+        return PLACES[place_id]
+
+
+def fake_providers(error: Exception | None = None) -> Providers:
+    return Providers(country=JAPAN, places=FakePlaceProvider(error))
 
 
 async def fake_weather(lat, lng, day):

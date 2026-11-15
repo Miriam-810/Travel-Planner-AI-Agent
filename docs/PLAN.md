@@ -26,8 +26,9 @@ backend/
   app/
     main.py              # FastAPI routes
     models.py            # TripRequest / Trip / Day / Stop / Weather / PlaceHours
-    agent/               # loop.py, prompts.py, tools.py, validate.py
-    tools/               # weather.py, places.py
+    agent/               # loop.py, prompts.py, tools.py, validate.py（不含任何國家專屬邏輯）
+    providers/           # base.py（介面）、registry.py、japan.py、google_places.py、sample.py
+    tools/               # weather.py（Open-Meteo，全球通用）、hours.py（營業時間判斷）
     fixtures/sample_trip.json
   tests/
 frontend/
@@ -77,6 +78,25 @@ frontend/
   5. 同一天 `arrive` 依序遞增、停留不重疊
   6. 出發日超過 7 天又遇年末年始／國定假日 → 加「營業時間可能變動」警示
 - 檢查失敗 → `is_error` 退回重排，最多 2 次；仍失敗就回傳並列入 `warnings`。
+
+## Provider 架構（多國）
+
+第一階段只做日本，但工具層設計成 provider，之後加韓國只要新增 provider，agent 不用改。
+
+| 介面 | 職責 | 日本 | 
+| --- | --- | --- |
+| `PlaceProvider` | `search(query, lat, lng, radius_m)`、`get(place_id)`，回傳統一的 `Place`（營業時間用共同的 `periods` 格式） | `GooglePlacesProvider`（`language="ja"`、`region="JP"`） |
+| `RouteProvider` | `route(origin, destination, depart_at, mode)` → `Route` | 第二階段（Google Routes API），目前為 `None` |
+| `Country` | 國碼、時區、地名語言、店名範例、連假期間 | `JAPAN`（Asia/Tokyo、日文、年末年始／黃金週／盂蘭盆節） |
+
+- `ProviderRegistry` 依 `TripRequest.country` 取出該國的 `Providers`；不支援的國家回 422。
+- `TripRequest` 和 `Trip` 都有 `country`（ISO 兩碼，預設 `JP`）。哪些國家可用由 registry 決定，不寫死在資料模型裡。
+- 天氣、營業時間判斷、行程檢查規則、agent loop、system prompt 的規則都是共用的；prompt 只把國名和地名語言代入。
+- 新增國家的步驟：
+  1. 新增 `app/providers/<國家>.py`：定義 `Country`（時區、語言、連假），以及回傳 `Providers` 的函式。
+  2. 若資料來源不是 Google，實作 `PlaceProvider`，把營業時間轉成 `periods` 格式。
+  3. 在 `app/providers/registry.py` 的 `build_registry` 加一行。
+  4. 前端表單加上國家選項。
 
 ## 行程頁
 

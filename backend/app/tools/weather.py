@@ -26,6 +26,7 @@ FORECAST_DAYS = 16  # Open-Meteo forecasts up to 16 days, today included
 CLIMATE_YEARS = 5
 CLIMATE_WINDOW_DAYS = 3  # ± days around the target date
 TIMEOUT_S = 10.0
+CACHE_MAX_ENTRIES = 2000
 JST = ZoneInfo("Asia/Tokyo")
 
 
@@ -80,27 +81,34 @@ async def get_weather(
     *,
     client: httpx2.AsyncClient,
     today: date | None = None,
+    tz: ZoneInfo = JST,
 ) -> Weather:
-    today = today or today_in_japan()
+    """`tz` is the destination's timezone: it decides what "today" and each date mean."""
+    today = today or datetime.now(tz).date()
     place = (round(lat, 2), round(lng, 2))
 
     if in_forecast_window(day, today):
         key = ("forecast", *place, day, today)
         if key not in _cache:
-            _cache[key] = await _forecast(client, lat, lng, day)
+            _cache[key] = await _forecast(client, lat, lng, day, tz)
     else:
         key = ("climate_avg", *place, day.month, day.day)
         if key not in _cache:
-            _cache[key] = await _climate_avg(client, lat, lng, day, today)
-    return _cache[key]
+            _cache[key] = await _climate_avg(client, lat, lng, day, today, tz)
+    result = _cache[key]
+    while len(_cache) > CACHE_MAX_ENTRIES:  # oldest first; lat/lng come from clients
+        del _cache[next(iter(_cache))]
+    return result
 
 
-async def _fetch_daily(client: httpx2.AsyncClient, url: str, lat: float, lng: float, start: date, end: date) -> dict:
+async def _fetch_daily(
+    client: httpx2.AsyncClient, url: str, lat: float, lng: float, start: date, end: date, tz: ZoneInfo
+) -> dict:
     params = {
         "latitude": lat,
         "longitude": lng,
         "daily": DAILY_FIELDS,
-        "timezone": "Asia/Tokyo",
+        "timezone": tz.key,
         "start_date": start.isoformat(),
         "end_date": end.isoformat(),
     }
@@ -117,8 +125,8 @@ def _values(daily: dict, field: str) -> list:
     return [v for v in daily.get(field, []) if v is not None]
 
 
-async def _forecast(client: httpx2.AsyncClient, lat: float, lng: float, day: date) -> Weather:
-    daily = await _fetch_daily(client, FORECAST_URL, lat, lng, day, day)
+async def _forecast(client: httpx2.AsyncClient, lat: float, lng: float, day: date, tz: ZoneInfo) -> Weather:
+    daily = await _fetch_daily(client, FORECAST_URL, lat, lng, day, day, tz)
     highs, lows = _values(daily, "temperature_2m_max"), _values(daily, "temperature_2m_min")
     if not highs or not lows:
         raise WeatherError(f"no forecast for {day}")
@@ -141,7 +149,9 @@ def _same_day_in(year: int, day: date) -> date:
         return day.replace(year=year, day=28)
 
 
-async def _climate_avg(client: httpx2.AsyncClient, lat: float, lng: float, day: date, today: date) -> Weather:
+async def _climate_avg(
+    client: httpx2.AsyncClient, lat: float, lng: float, day: date, today: date, tz: ZoneInfo
+) -> Weather:
     # Most recent CLIMATE_YEARS years whose whole window is already in the archive.
     years: list[int] = []
     year = day.year - 1
@@ -153,7 +163,7 @@ async def _climate_avg(client: httpx2.AsyncClient, lat: float, lng: float, day: 
     window = timedelta(days=CLIMATE_WINDOW_DAYS)
     results = await asyncio.gather(
         *(
-            _fetch_daily(client, ARCHIVE_URL, lat, lng, _same_day_in(y, day) - window, _same_day_in(y, day) + window)
+            _fetch_daily(client, ARCHIVE_URL, lat, lng, _same_day_in(y, day) - window, _same_day_in(y, day) + window, tz)
             for y in years
         )
     )

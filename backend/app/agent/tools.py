@@ -9,14 +9,14 @@ import json
 from datetime import date
 
 from app.models import Weather
-from app.tools.places import Place
+from app.providers.base import Place
 
 TIME_PATTERN = r"^([01][0-9]|2[0-3]):[0-5][0-9]$"
 
 GET_WEATHER = {
     "name": "get_weather",
     "description": (
-        "Daily weather for one place and date in Japan. Dates within 16 days return a forecast; "
+        "Daily weather for one place and date. Dates within 16 days return a forecast; "
         "later dates return the average of the same week over the past 5 years (source 'climate_avg'). "
         "Use it to put indoor sights on snowy or rainy days."
     ),
@@ -36,7 +36,7 @@ GET_WEATHER = {
 SEARCH_PLACE = {
     "name": "search_place",
     "description": (
-        "Search Google Places near a point. Returns up to 3 candidates with place_id, name (in Japanese), address, "
+        "Search places near a point. Returns up to 3 candidates with place_id, name (in the local language), address, "
         "coordinates, rating, business_status and the opening hours on the given date "
         "('休息' = closed that day, null = Google has no hours, common for parks and viewpoints). "
         "Every stop in the outline must use a place_id returned by this tool. Each call costs money: "
@@ -46,7 +46,7 @@ SEARCH_PLACE = {
     "input_schema": {
         "type": "object",
         "properties": {
-            "query": {"type": "string", "description": "What to look for, in Japanese or Chinese, including the area name"},
+            "query": {"type": "string", "description": "What to look for, in the local language or Chinese, including the area name"},
             "lat": {"type": "number"},
             "lng": {"type": "number"},
             "radius_m": {"type": "integer", "description": "Search bias radius in metres, 500–20000"},
@@ -60,7 +60,7 @@ SEARCH_PLACE = {
 _STOP = {
     "type": "object",
     "properties": {
-        "name": {"type": "string", "description": "'<short Traditional Chinese description>｜<Japanese name from search_place>', e.g. '海鮮丼市場｜青森魚菜センター'"},
+        "name": {"type": "string", "description": "'<short Traditional Chinese description>｜<local name exactly as search_place returned it>'"},
         "kind": {"type": "string", "enum": ["sight", "meal", "shop"]},
         "meal": {
             "anyOf": [{"type": "string", "enum": ["lunch", "dinner"]}, {"type": "null"}],
@@ -69,7 +69,7 @@ _STOP = {
         "place_id": {"type": "string", "description": "From a search_place result"},
         "arrive": {"type": "string", "pattern": TIME_PATTERN, "description": "Arrival time HH:MM, 24-hour"},
         "stay_min": {"type": "integer", "description": "Minutes spent at the stop, 15–480"},
-        "note": {"type": "string", "description": "One short sentence in Traditional Chinese: why go, or what to order"},
+        "note": {"type": "string", "description": "One short sentence in Traditional Chinese (under 100 characters): why go, or what to order"},
     },
     "required": ["name", "kind", "meal", "place_id", "arrive", "stay_min", "note"],
     "additionalProperties": False,

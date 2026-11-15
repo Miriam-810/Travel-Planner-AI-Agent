@@ -5,17 +5,11 @@ import httpx2
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app, get_http_client, get_limiter, get_place_resolver
-from app.tools.places import (
-    DETAILS_URL,
-    SEARCH_URL,
-    PlaceNotFound,
-    PlacesError,
-    get_place,
-    needs_hours_caveat,
-    search_place,
-)
-from app.trip_builder import google_place_resolver
+from app.main import app, get_http_client, get_limiter, get_registry
+from app.providers.base import PlaceNotFound, PlacesError
+from app.providers.google_places import SEARCH_URL, GooglePlacesProvider
+from app.providers.japan import JAPAN
+from tests.conftest import google_registry
 from tests.conftest import INVITE, make_limiter
 
 pytestmark = pytest.mark.anyio
@@ -48,6 +42,10 @@ def daily(open_, close, days=range(7)):
     ]
 
 
+def google(client) -> GooglePlacesProvider:
+    return GooglePlacesProvider(client, KEY, language="ja", region="JP")
+
+
 class FakePlaces:
     def __init__(self, places: dict[str, dict], status: int = 200):
         self.places = places
@@ -72,7 +70,7 @@ class FakePlaces:
 async def test_search_sends_key_field_mask_and_location_bias():
     fake = FakePlaces({f"p{i}": raw_place(f"p{i}") for i in range(5)})
     async with fake.client() as client:
-        found = await search_place("拉麵", 40.82, 140.74, radius_m=2000, client=client, api_key=KEY)
+        found = await google(client).search("拉麵", 40.82, 140.74, radius_m=2000)
 
     assert [p.place_id for p in found] == ["p0", "p1", "p2"]  # at most 3 candidates
     req = fake.requests[0]
@@ -86,8 +84,8 @@ async def test_search_sends_key_field_mask_and_location_bias():
 async def test_search_results_are_reused_by_details():
     fake = FakePlaces({"p0": raw_place("p0")})
     async with fake.client() as client:
-        await search_place("拉麵", 40.82, 140.74, client=client, api_key=KEY)
-        place = await get_place("p0", client=client, api_key=KEY)
+        await google(client).search("拉麵", 40.82, 140.74, radius_m=3000)
+        place = await google(client).get("p0")
 
     assert place.name == "麵屋 示例"
     assert len(fake.requests) == 1
@@ -97,14 +95,14 @@ async def test_unknown_place_id_raises_not_found():
     fake = FakePlaces({})
     async with fake.client() as client:
         with pytest.raises(PlaceNotFound):
-            await get_place("nope", client=client, api_key=KEY)
+            await google(client).get("nope")
 
 
 async def test_server_error_raises_places_error():
     fake = FakePlaces({}, status=429)
     async with fake.client() as client:
         with pytest.raises(PlacesError, match="quota exceeded"):
-            await get_place("p0", client=client, api_key=KEY)
+            await google(client).get("p0")
 
 
 async def test_hours_use_this_weeks_actual_hours_when_available():
@@ -112,7 +110,7 @@ async def test_hours_use_this_weeks_actual_hours_when_available():
     current = daily(11, 21, days=[0, 1, 3, 4, 5, 6])
     fake = FakePlaces({"p0": raw_place("p0", periods=daily(11, 21), current=current)})
     async with fake.client() as client:
-        place = await get_place("p0", client=client, api_key=KEY)
+        place = await google(client).get("p0")
 
     this_tue, next_month_tue = date(2026, 11, 17), date(2026, 12, 15)
     closed = place.hours_on(this_tue, time(12, 0), 60, today=TODAY)
@@ -124,7 +122,7 @@ async def test_hours_use_this_weeks_actual_hours_when_available():
 async def test_place_without_hours_is_unknown_not_closed():
     fake = FakePlaces({"park": raw_place("park", name="公園")})
     async with fake.client() as client:
-        place = await get_place("park", client=client, api_key=KEY)
+        place = await google(client).get("park")
 
     hours = place.hours_on(date(2026, 12, 25), time(10, 0), 60, today=TODAY)
     assert hours.today_text is None and hours.open_at_arrive is None
@@ -132,10 +130,10 @@ async def test_place_without_hours_is_unknown_not_closed():
 
 
 def test_hours_caveat_only_for_holiday_seasons_beyond_a_week():
-    assert needs_hours_caveat(date(2026, 12, 31), TODAY) == "年末年始"
-    assert needs_hours_caveat(date(2027, 5, 3), TODAY) == "黃金週"
-    assert needs_hours_caveat(date(2026, 12, 10), TODAY) is None
-    assert needs_hours_caveat(date(2026, 12, 30), date(2026, 12, 28)) is None  # Google has actual hours
+    assert JAPAN.hours_caveat(date(2026, 12, 31), TODAY) == "年末年始"
+    assert JAPAN.hours_caveat(date(2027, 5, 3), TODAY) == "黃金週"
+    assert JAPAN.hours_caveat(date(2026, 12, 10), TODAY) is None
+    assert JAPAN.hours_caveat(date(2026, 12, 30), date(2026, 12, 28)) is None  # Google has actual hours
 
 
 # --- POST /api/trips with the Google resolver -------------------------------
@@ -170,7 +168,7 @@ def google_client(tmp_path):
     places_http = fake.client()
     weather_down = httpx2.AsyncClient(transport=httpx2.MockTransport(lambda r: httpx2.Response(503)))
     app.dependency_overrides[get_http_client] = lambda: weather_down
-    app.dependency_overrides[get_place_resolver] = lambda: google_place_resolver(places_http, KEY)
+    app.dependency_overrides[get_registry] = lambda: google_registry(places_http, KEY)
     app.dependency_overrides[get_limiter] = lambda: make_limiter(tmp_path)
     yield TestClient(app, headers=INVITE), fake
     app.dependency_overrides.clear()
@@ -204,7 +202,7 @@ def test_closed_permanently_becomes_a_warning(google_client):
     body["days"][0]["stops"][0]["place_id"] = "gone"
     res = client.post("/api/trips", json={"request": REQUEST, "outline": body})
 
-    assert "午餐店：Google 顯示已歇業" in res.json()["days"][0]["warnings"]
+    assert "午餐店：地圖資料顯示已歇業" in res.json()["days"][0]["warnings"]
 
 
 def test_unknown_place_is_422(google_client):

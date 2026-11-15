@@ -1,7 +1,12 @@
-"""Invite codes and daily limits for generating outlines.
+"""Invite codes and daily limits.
 
-Each POST /api/outline takes one slot: per invite code per day, and for the
-whole site per day. Days follow Japan time, so the limits reset at midnight JST.
+Two kinds of request are counted separately, each per invite code per day and
+for the whole site per day:
+
+- "outline": POST /api/outline (Claude + Places searches, the expensive one)
+- "trips":   POST /api/trips (Places details for every stop of a confirmed outline)
+
+Days follow Japan time, so the limits reset at midnight JST.
 A slot is given back if the run fails, so errors on our side don't use up
 someone's quota.
 
@@ -30,11 +35,11 @@ SITE = "*"
 
 
 class UsageLimiter:
-    def __init__(self, db_path: str | Path, codes: set[str], *, per_code: int, per_site: int):
+    def __init__(self, db_path: str | Path, codes: set[str], limits: dict[str, tuple[int, int]]):
+        """`limits` maps a kind to (per code per day, whole site per day)."""
         self.db_path = str(db_path)
         self.codes = codes
-        self.per_code = per_code
-        self.per_site = per_site
+        self.limits = limits
         self._lock = threading.Lock()
         with closing(self._connect()) as db, db:
             db.execute(
@@ -49,32 +54,36 @@ class UsageLimiter:
             raise InvalidInviteCode()
         return code.strip()
 
-    def reserve(self, code: str, day: date) -> None:
-        """Take one slot for `code` on `day`, or raise DailyLimitReached."""
+    def reserve(self, code: str, day: date, kind: str) -> None:
+        """Take one `kind` slot for `code` on `day`, or raise DailyLimitReached."""
         code = self.check_code(code)
+        per_code, per_site = self.limits[kind]
         with self._lock, closing(self._connect()) as db, db:
-            if self._count(db, day, SITE) >= self.per_site:
+            if self._count(db, day, f"{kind}:{SITE}") >= per_site:
                 raise DailyLimitReached("site")
-            if self._count(db, day, code) >= self.per_code:
+            if self._count(db, day, f"{kind}:{code}") >= per_code:
                 raise DailyLimitReached("code")
-            for key in (code, SITE):
+            for key in (f"{kind}:{code}", f"{kind}:{SITE}"):
                 db.execute(
                     "INSERT INTO usage VALUES (?, ?, 1) ON CONFLICT (day, code) DO UPDATE SET count = count + 1",
                     (day.isoformat(), key),
                 )
 
-    def release(self, code: str, day: date) -> None:
+    def release(self, code: str, day: date, kind: str) -> None:
         """Give back a slot taken by reserve()."""
         with self._lock, closing(self._connect()) as db, db:
-            for key in (code.strip(), SITE):
+            for key in (f"{kind}:{code.strip()}", f"{kind}:{SITE}"):
                 db.execute(
                     "UPDATE usage SET count = MAX(count - 1, 0) WHERE day = ? AND code = ?", (day.isoformat(), key)
                 )
 
-    def remaining(self, code: str, day: date) -> int:
+    def remaining(self, code: str, day: date, kind: str) -> int:
         code = self.check_code(code)
+        per_code, per_site = self.limits[kind]
         with closing(self._connect()) as db:
-            return max(0, min(self.per_code - self._count(db, day, code), self.per_site - self._count(db, day, SITE)))
+            left_code = per_code - self._count(db, day, f"{kind}:{code}")
+            left_site = per_site - self._count(db, day, f"{kind}:{SITE}")
+            return max(0, min(left_code, left_site))
 
     @staticmethod
     def _count(db: sqlite3.Connection, day: date, code: str) -> int:

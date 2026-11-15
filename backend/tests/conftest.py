@@ -6,7 +6,11 @@ import httpx2
 import pytest
 
 from app.limits import UsageLimiter
-from app.tools import places, weather
+from app.providers import google_places as places
+from app.providers.base import ProviderRegistry, Providers
+from app.providers.japan import JAPAN, japan_providers
+from app.providers.sample import SamplePlaceProvider
+from app.tools import weather
 
 INVITE = {"X-Invite-Code": "test-code"}
 
@@ -60,5 +64,21 @@ class FakeOpenMeteo:
         return httpx2.AsyncClient(transport=httpx2.MockTransport(self.handler))
 
 
-def make_limiter(tmp_path, *, per_code=3, per_site=20) -> UsageLimiter:
-    return UsageLimiter(tmp_path / "usage.sqlite", {"test-code", "other-code"}, per_code=per_code, per_site=per_site)
+def make_limiter(tmp_path, *, per_code=3, per_site=20, trips=(10, 50)) -> UsageLimiter:
+    return UsageLimiter(
+        tmp_path / "usage.sqlite",
+        {"test-code", "other-code"},
+        {"outline": (per_code, per_site), "trips": trips},
+    )
+
+
+def sample_registry() -> ProviderRegistry:
+    """Japan, resolving only the bundled sample trip's places (no Google)."""
+    from app.main import load_sample_trip
+
+    return ProviderRegistry({"JP": lambda: Providers(country=JAPAN, places=SamplePlaceProvider(load_sample_trip()))})
+
+
+def google_registry(http: httpx2.AsyncClient, key: str = "test-key") -> ProviderRegistry:
+    """Japan with the real Google provider, talking to whatever `http` is wired to."""
+    return ProviderRegistry({"JP": lambda: japan_providers(http, key)})

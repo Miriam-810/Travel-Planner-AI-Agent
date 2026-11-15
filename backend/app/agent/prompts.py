@@ -14,9 +14,14 @@ from app.agent.validate import (
     required_meals,
 )
 from app.models import TripRequest
+from app.providers.base import Country
 from app.trip_builder import lodging_for_night
 
-SYSTEM_PROMPT = f"""You plan self-guided trips in Japan for travellers from Taiwan. You turn a trip request into a day-by-day outline of sights, lunch, dinner and shops, using real places whose opening hours you have checked.
+
+def system_prompt(country: Country) -> str:
+    """The same rules for every country; only the country name and the local language differ."""
+    examples = ", ".join(f"'{e}'" for e in country.name_examples)
+    return f"""You plan self-guided trips in {country.name_zh} ({country.code}) for travellers from Taiwan. You turn a trip request into a day-by-day outline of sights, lunch, dinner and shops, using real places whose opening hours you have checked.
 
 How to work:
 1. Decide the main area of each day first. Keep each day within one area so travel stays short. Where the traveller has booked a hotel, the day should end near it.
@@ -32,7 +37,7 @@ Rules the program checks (an outline that breaks them comes back to you):
 - Each stop is open for the whole stay, from arrive to arrive + stay_min, on that date. Read hours_on_date carefully: many restaurants close between lunch and dinner, and '休息' means closed all day. A null hours_on_date (common for parks, shrines and viewpoints) is allowed.
 - Stops in a day are in time order and don't overlap. Leave realistic travel time between them (15–60 minutes depending on distance).
 - A full day (marked "full_day" in the user message) has at least {MIN_ACTIVITIES_FULL_DAY} sights or shops besides the meals.
-- No gap longer than {MAX_GAP.seconds // 3600} hours between one stop ending and the next starting, on any day. Fill the afternoon between lunch and dinner with sights, shops, a café or an onsen.
+- No gap longer than {MAX_GAP.seconds // 3600} hours between one stop ending and the next starting, on any day. Fill the afternoon between lunch and dinner with sights, shops, a café or a hot spring.
 
 Good plans:
 - A slower pace (e.g. '不想太趕') means longer stays and fewer far-apart areas, not empty afternoons: still meet the two rules above.
@@ -40,11 +45,11 @@ Good plans:
 - stay_min is realistic: 45–75 minutes for lunch, 60–90 for dinner, 30–120 for sights.
 - area_lat and area_lng are the centre of the day's main area.
 - Write title, area and note in Traditional Chinese (台灣用語). Keep notes to one short sentence.
-- Every stop name is '<short Traditional Chinese description>｜<the Japanese name exactly as search_place returned it>', e.g. '海鮮丼市場｜青森魚菜センター', '繩文遺跡｜三内丸山遺跡', '精釀啤酒餐廳｜浅虫ビール'. The description tells a Taiwanese traveller what the place is; the Japanese name is what they will see on the sign.
+- Every stop name is '<short Traditional Chinese description>｜<the {country.local_language} name exactly as search_place returned it>', e.g. {examples}. The description tells a Taiwanese traveller what the place is; the {country.local_language} name is what they will see on the sign.
 """
 
 
-def first_message(request: TripRequest, *, today: date) -> str:
+def first_message(request: TripRequest, country: Country, *, today: date) -> str:
     days = (request.end_date - request.start_date).days + 1
     plan = []
     for i in range(days):
@@ -57,6 +62,7 @@ def first_message(request: TripRequest, *, today: date) -> str:
             "hotel_tonight": lodging_for_night(d, request.lodgings),
         })
     payload = {
+        "country": country.code,
         "today": today.isoformat(),
         "request": json.loads(request.model_dump_json()),
         "days": plan,

@@ -10,12 +10,24 @@ Three groups, matching who fills them in:
 """
 
 from datetime import date, datetime, time
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 MIN_TRIP_DAYS = 5
 MAX_TRIP_DAYS = 8
+
+# Limits on everything a client can send. Free text goes into Claude's prompt on
+# every turn, and every stop costs a Google Places call, so nothing is unbounded.
+MAX_STOPS_PER_DAY = 12
+MAX_PREFERENCES = 10
+MAX_LODGINGS = 10
+
+# Google place ids are URL-safe base64-ish strings. Anything else is rejected
+# before it can be put into a Places URL (e.g. "../places:searchNearby").
+PLACE_ID_PATTERN = r"^[A-Za-z0-9_-]{1,300}$"
+
+Preference = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=50)]
 
 StopKind = Literal["sight", "meal", "shop"]
 MealType = Literal["lunch", "dinner"]
@@ -29,7 +41,7 @@ MealType = Literal["lunch", "dinner"]
 class LodgingInput(BaseModel):
     """A hotel the user has already booked."""
 
-    name: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=100)
     check_in: date
     check_out: date
 
@@ -40,16 +52,25 @@ class LodgingInput(BaseModel):
         return self
 
 
+# ISO 3166-1 alpha-2. Which codes are supported is decided by the provider
+# registry (app/providers/registry.py), not here, so adding a country needs no
+# model change.
+CountryCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]
+
+
 class TripRequest(BaseModel):
-    destination: str = Field(min_length=1, examples=["青森・函館"])
+    country: CountryCode = Field("JP", examples=["JP"])
+    destination: str = Field(min_length=1, max_length=50, examples=["青森・函館"])
     start_date: date
     end_date: date
     arrival_time: time | None = Field(None, description="Flight lands on start_date")
     departure_time: time | None = Field(None, description="Flight leaves on end_date")
     travelers: int = Field(ge=1, le=20)
-    budget_twd: int | None = Field(None, ge=0)
-    preferences: list[str] = Field(default_factory=list, examples=[["溫泉", "美食", "不想太趕"]])
-    lodgings: list[LodgingInput] = Field(default_factory=list)
+    budget_twd: int | None = Field(None, ge=0, le=1_000_000)
+    preferences: list[Preference] = Field(
+        default_factory=list, max_length=MAX_PREFERENCES, examples=[["溫泉", "美食", "不想太趕"]]
+    )
+    lodgings: list[LodgingInput] = Field(default_factory=list, max_length=MAX_LODGINGS)
 
     @model_validator(mode="after")
     def check_trip_length(self) -> Self:
@@ -67,13 +88,13 @@ class TripRequest(BaseModel):
 
 
 class StopDraft(BaseModel):
-    name: str = Field(min_length=1)
+    name: str = Field(min_length=1, max_length=100)
     kind: StopKind
     meal: MealType | None = Field(None, description="Required when kind is 'meal'")
-    place_id: str = Field(min_length=1, description="Must come from a search_place result")
+    place_id: str = Field(pattern=PLACE_ID_PATTERN, description="Must come from a search_place result")
     arrive: time
     stay_min: int = Field(ge=15, le=480)
-    note: str = ""
+    note: str = Field("", max_length=200)
 
     @model_validator(mode="after")
     def check_meal(self) -> Self:
@@ -86,15 +107,15 @@ class StopDraft(BaseModel):
 
 class DayDraft(BaseModel):
     date: date
-    title: str = Field(min_length=1, examples=["函館 → 青森"])
-    area: str = Field(min_length=1, description="Main area of the day, used for weather")
+    title: str = Field(min_length=1, max_length=60, examples=["函館 → 青森"])
+    area: str = Field(min_length=1, max_length=60, description="Main area of the day, used for weather")
     area_lat: float = Field(ge=-90, le=90)
     area_lng: float = Field(ge=-180, le=180)
-    stops: list[StopDraft] = Field(min_length=1)
+    stops: list[StopDraft] = Field(min_length=1, max_length=MAX_STOPS_PER_DAY)
 
 
 class TripOutline(BaseModel):
-    days: list[DayDraft] = Field(min_length=1)
+    days: list[DayDraft] = Field(min_length=1, max_length=MAX_TRIP_DAYS)
 
 
 # ---------------------------------------------------------------------------
@@ -144,6 +165,7 @@ class Day(BaseModel):
 
 class Trip(BaseModel):
     id: str
+    country: CountryCode = "JP"
     destination: str
     start_date: date
     end_date: date

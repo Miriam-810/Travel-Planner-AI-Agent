@@ -5,7 +5,7 @@ from tests.agent_fixtures import (
     REQUEST,
     TODAY,
     FakeLLM,
-    fake_search,
+    fake_providers,
     fake_weather,
     response,
     tool_use,
@@ -32,7 +32,7 @@ def bad_outline():
 
 
 async def run(llm, model="claude-haiku-5-5"):
-    return await run_agent(REQUEST, llm=llm, model=model, effort="medium", search=fake_search, weather=fake_weather, today=TODAY)
+    return await run_agent(REQUEST, llm=llm, model=model, effort="medium", providers=fake_providers(), weather=fake_weather, today=TODAY)
 
 
 async def test_search_then_submit():
@@ -97,13 +97,10 @@ async def test_stopping_without_submitting_gets_one_nudge():
 
 
 async def test_failed_search_is_a_tool_error_not_a_crash():
-    from app.tools.places import PlacesError
-
-    async def broken_search(*_):
-        raise PlacesError("Places HTTP 429: quota")
+    from app.providers.base import PlacesError
 
     llm = FakeLLM([response(SEARCHES[0])] + [response(submit(valid_outline(), f"x{i}")) for i in range(3)])
-    result = await run_agent(REQUEST, llm=llm, model="claude-haiku-5-5", effort="medium", search=broken_search, weather=fake_weather, today=TODAY)
+    result = await run_agent(REQUEST, llm=llm, model="claude-haiku-5-5", effort="medium", providers=fake_providers(PlacesError("Places HTTP 429: quota")), weather=fake_weather, today=TODAY)
 
     first_result = llm.calls[1]["messages"][-1]["content"][0]
     assert first_result["is_error"] and "quota" in first_result["content"]

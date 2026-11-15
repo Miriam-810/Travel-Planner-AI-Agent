@@ -17,8 +17,8 @@ import httpx2
 from app.agent.loop import AgentError, run_agent
 from app.config import get_settings
 from app.models import LodgingInput, TripRequest
-from app.tools.places import search_place
-from app.tools.weather import get_weather, today_in_japan
+from app.providers.japan import JAPAN, japan_providers
+from app.tools.weather import get_weather
 
 REQUEST = TripRequest(
     destination="青森",
@@ -41,15 +41,18 @@ async def main() -> None:
 
     async with httpx2.AsyncClient() as http, anthropic.AsyncAnthropic(api_key=s.anthropic_api_key, timeout=180) as llm:
 
-        async def search(q, lat, lng, r):
-            return await search_place(q, lat, lng, radius_m=r, client=http, api_key=s.google_places_api_key)
-
         async def weather(lat, lng, d):
-            return await get_weather(lat, lng, d, client=http)
+            return await get_weather(lat, lng, d, client=http, tz=JAPAN.timezone)
 
         try:
             result = await run_agent(
-                REQUEST, llm=llm, model=s.model, effort=s.effort, search=search, weather=weather, today=today_in_japan()
+                REQUEST,
+                llm=llm,
+                model=s.model,
+                effort=s.effort,
+                providers=japan_providers(http, s.google_places_api_key),
+                weather=weather,
+                today=JAPAN.today(),
             )
         except AgentError as exc:
             sys.exit(f"failed: {exc}")

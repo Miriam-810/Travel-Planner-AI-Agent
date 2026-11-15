@@ -35,7 +35,7 @@ interface Props {
 export function TripMap(props: Props) {
   const first = props.trip.days[0]?.stops[0]
   return (
-    <APIProvider apiKey={MAPS_API_KEY} language="zh-TW" region="JP">
+    <APIProvider apiKey={MAPS_API_KEY} language="zh-TW" region={props.trip.country}>
       <Map
         mapId={MAP_ID}
         defaultCenter={first ? toLatLng(first) : { lat: 36.2, lng: 138.2 }}

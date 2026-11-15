@@ -12,7 +12,7 @@ from datetime import date, datetime, time, timedelta
 
 from app.models import DayDraft, StopDraft, TripOutline, TripRequest
 from app.tools.hours import is_open_for_stay
-from app.tools.places import Place
+from app.providers.base import Place
 
 # Time to get from the airport to the first stop, and back for the flight home.
 ARRIVAL_BUFFER = timedelta(minutes=60)

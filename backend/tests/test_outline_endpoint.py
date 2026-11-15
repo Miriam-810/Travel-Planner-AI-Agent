@@ -5,10 +5,10 @@ from fastapi.testclient import TestClient
 
 from app.agent.loop import AgentError, AgentRefused, AgentResult, AgentStats
 from app.limits import DailyLimitReached, InvalidInviteCode
-from app.main import app, get_agent_runner, get_limiter
+from app.main import app, get_agent_runner, get_limiter, get_registry
 from app.models import TripOutline
 from tests.agent_fixtures import REQUEST, valid_outline
-from tests.conftest import INVITE, make_limiter
+from tests.conftest import INVITE, make_limiter, sample_registry
 
 BODY = REQUEST.model_dump(mode="json")
 
@@ -95,6 +95,7 @@ def test_invite_endpoint(setup):
 
 def test_outline_without_keys_is_503(tmp_path):
     app.dependency_overrides[get_limiter] = lambda: make_limiter(tmp_path)
+    app.dependency_overrides[get_registry] = sample_registry
     try:
         res = TestClient(app).post("/api/outline", json=BODY, headers=INVITE)
     finally:
@@ -107,10 +108,11 @@ def test_outline_without_keys_is_503(tmp_path):
 
 def test_limits_reset_each_day(tmp_path):
     limiter = make_limiter(tmp_path, per_code=1)
-    limiter.reserve("test-code", date(2026, 12, 1))
+    limiter.reserve("test-code", date(2026, 12, 1), "outline")
     with pytest.raises(DailyLimitReached):
-        limiter.reserve("test-code", date(2026, 12, 1))
-    limiter.reserve("test-code", date(2026, 12, 2))
+        limiter.reserve("test-code", date(2026, 12, 1), "outline")
+    limiter.reserve("test-code", date(2026, 12, 2), "outline")
+    limiter.reserve("test-code", date(2026, 12, 1), "trips")  # counted separately
 
 
 def test_codes_are_trimmed_and_checked(tmp_path):

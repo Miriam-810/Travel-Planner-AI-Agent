@@ -50,6 +50,8 @@ export interface Day {
 
 export interface Trip {
   id: string
+  /** ISO 3166-1 alpha-2, e.g. "JP". Decides the map's region bias. */
+  country: string
   destination: string
   start_date: string
   end_date: string

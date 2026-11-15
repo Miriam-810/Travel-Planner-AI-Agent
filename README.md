@@ -77,10 +77,12 @@ uv run uvicorn app.main:app --reload --port 8000
 | API | 作用 | 邀請碼 | 計入每日額度 |
 | --- | --- | --- | --- |
 | `POST /api/outline` | 送出需求表單，Claude 查天氣、找店，排出行程大綱 | 要 | 要（失敗不算） |
-| `POST /api/trips` | 送出確認後的大綱，補上天氣、營業時間、住宿，產生完整行程 | 要 | 不算 |
+| `POST /api/trips` | 送出確認後的大綱，補上天氣、營業時間、住宿，產生完整行程 | 要 | 另外計算（每碼每天 10 次、全站 50 次，失敗不算） |
 | `GET /api/invite` | 檢查邀請碼，回傳今天還能產生幾份 | 要 | 不算 |
 
 邀請碼放在 HTTP header `X-Invite-Code`，有效的碼寫在 `backend/.env` 的 `INVITE_CODES`。每個碼每天 3 份、全站每天 20 份，可以用 `DAILY_LIMIT_PER_CODE`、`DAILY_LIMIT_SITE` 調整，日本時間午夜歸零。次數記在 `backend/usage.sqlite`。
+
+為了避免被拿來燒錢，所有輸入都有上限：目的地 50 字、偏好最多 10 項（每項 50 字）、住宿最多 10 筆、每天最多 12 站，place_id 只接受 Google 格式。部署時在 `.env` 設 `ENABLE_DOCS=false`，就會關掉 `/docs` 這類 API 文件頁。
 
 ### 啟動前端
 
@@ -132,5 +134,7 @@ uv run python -m scripts.check_outline
 
 - [需求規格](docs/SPEC.md)
 - [第一階段實作計畫](docs/PLAN.md)
+
+- [Provider 架構（之後加入韓國等國家的方式）](docs/PLAN.md#provider-架構多國)
 
 <!-- TODO（步驟 9）：架構圖、設計決策 -->

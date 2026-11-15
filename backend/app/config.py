@@ -22,11 +22,18 @@ class Settings(BaseSettings):
     invite_codes: str = ""
     daily_limit_per_code: int = 3
     daily_limit_site: int = 20
+    # POST /api/trips: each call looks up every stop on Google Places (up to 8 × 12).
+    daily_trips_per_code: int = 10
+    daily_trips_site: int = 50
     usage_db_path: str = "usage.sqlite"
 
     # Server-side key for Google Places API (New). Empty → POST /api/trips only
     # accepts the sample trip's place ids.
     google_places_api_key: str = ""
+
+    # Serve the interactive API docs (/docs, /redoc, /openapi.json). Set
+    # ENABLE_DOCS=false in production so the API isn't advertised.
+    enable_docs: bool = True
 
     # Comma-separated origins allowed to call the API from a browser. In local
     # development the Vite dev server proxies /api, so this is only needed once

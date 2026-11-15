@@ -15,11 +15,11 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.agent.prompts import SYSTEM_PROMPT, first_message
+from app.agent.prompts import first_message, system_prompt
 from app.agent.tools import TOOLS, clamp_radius, search_result, weather_result
 from app.agent.validate import validate_outline
 from app.models import TripOutline, TripRequest, Weather
-from app.tools.places import Place, PlacesError
+from app.providers.base import Place, PlacesError, Providers
 from app.tools.weather import WeatherError
 
 log = logging.getLogger(__name__)
@@ -42,7 +42,6 @@ PRICES = {
 }
 PLACES_SEARCH_USD = 0.035  # Text Search Enterprise, after the monthly free 1,000
 
-SearchFn = Callable[[str, float, float, int], Awaitable[list[Place]]]
 WeatherFn = Callable[[float, float, date], Awaitable[Weather]]
 
 
@@ -113,14 +112,19 @@ async def run_agent(
     llm: Any,
     model: str,
     effort: str,
-    search: SearchFn,
+    providers: Providers,
     weather: WeatherFn,
     today: date,
 ) -> AgentResult:
-    """`llm` is an anthropic.AsyncAnthropic (or a test double with the same `beta.messages.create`)."""
+    """Plan `request` with the country's providers. Nothing here is country-specific.
+
+    `llm` is an anthropic.AsyncAnthropic (or a test double with the same `beta.messages.create`).
+    `weather` is get_weather bound to the HTTP client and the country's timezone.
+    """
     stats = AgentStats(model=model)
     places: dict[str, Place] = {}
-    messages: list[dict] = [{"role": "user", "content": first_message(request, today=today)}]
+    system = system_prompt(providers.country)
+    messages: list[dict] = [{"role": "user", "content": first_message(request, providers.country, today=today)}]
     nudges = 0
     last_valid: TripOutline | None = None
     last_errors: list[str] = []
@@ -134,7 +138,7 @@ async def run_agent(
         resp = await llm.beta.messages.create(
             model=model,
             max_tokens=MAX_TOKENS,
-            system=SYSTEM_PROMPT,
+            system=system,
             tools=TOOLS,
             messages=messages,
             output_config={"effort": effort},
@@ -181,7 +185,7 @@ async def run_agent(
                 results.append(None)  # filled in below, concurrently
 
         pending = [(i, b) for i, (b, r) in enumerate(zip(tool_uses, results)) if r is None]
-        done = await asyncio.gather(*(_run_tool(b, search, weather, places, stats, today) for _, b in pending))
+        done = await asyncio.gather(*(_run_tool(b, providers, weather, places, stats, today) for _, b in pending))
         for (i, _), r in zip(pending, done):
             results[i] = r
         messages.append({"role": "user", "content": results})
@@ -218,14 +222,16 @@ def _error_result(tool_use_id: str, message: str) -> dict:
 
 
 async def _run_tool(
-    block: Any, search: SearchFn, weather: WeatherFn, places: dict[str, Place], stats: AgentStats, today: date
+    block: Any, providers: Providers, weather: WeatherFn, places: dict[str, Place], stats: AgentStats, today: date
 ) -> dict:
     args = block.input
     try:
         if block.name == "search_place":
             stats.searches += 1
             day = date.fromisoformat(args["date"])
-            found = await search(args["query"], args["lat"], args["lng"], clamp_radius(args["radius_m"]))
+            found = await providers.places.search(
+                args["query"], args["lat"], args["lng"], radius_m=clamp_radius(args["radius_m"])
+            )
             places.update({p.place_id: p for p in found})
             content = search_result(found, day, today=today)
         elif block.name == "get_weather":
