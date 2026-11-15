@@ -1,0 +1,60 @@
+import { useState } from 'react'
+import { DayItem } from '../components/DayItem'
+import { MapPanel } from '../components/MapPanel'
+import type { Trip } from '../types'
+
+export function TripPage({ trip }: { trip: Trip }) {
+  // One day open at a time; null = overview with every day collapsed.
+  const [openDay, setOpenDay] = useState<number | null>(null)
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null)
+
+  const toggleDay = (i: number) => {
+    setOpenDay((cur) => (cur === i ? null : i))
+    setSelectedStopId(null)
+  }
+
+  const showOverview = () => {
+    setOpenDay(null)
+    setSelectedStopId(null)
+  }
+
+  const stopCount = trip.days.reduce((n, d) => n + d.stops.length, 0)
+
+  return (
+    <div className="mx-auto max-w-[880px] px-4 pb-16 sm:px-6">
+      {/* Map stays on screen while the itinerary scrolls underneath. */}
+      <div className="sticky top-0 z-20 -mx-4 bg-paper px-4 pt-3 pb-3 sm:-mx-6 sm:px-6 sm:pt-5">
+        <MapPanel trip={trip} onOverview={showOverview} />
+      </div>
+
+      <header className="mt-4 mb-3 px-1">
+        <div className="font-mono text-[11px] font-bold tracking-[.14em] text-coral uppercase">The Trip Index</div>
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h1 className="m-0 text-[24px] leading-tight font-black tracking-[.02em] sm:text-[28px]">{trip.destination}</h1>
+          <span className="text-[13px] text-ink-soft">
+            {trip.days.length} 天 ／ {stopCount} 個地點
+          </span>
+        </div>
+        {trip.sample && (
+          <p className="m-0 mt-2 inline-block rounded-full border border-line bg-white px-3 py-0.5 text-[12px] text-ink-soft">
+            範例資料・營業時間僅供示意
+          </p>
+        )}
+      </header>
+
+      <ul className="m-0 list-none p-0">
+        {trip.days.map((day, i) => (
+          <DayItem
+            key={day.date}
+            day={day}
+            index={i}
+            open={openDay === i}
+            selectedStopId={selectedStopId}
+            onToggle={() => toggleDay(i)}
+            onSelectStop={setSelectedStopId}
+          />
+        ))}
+      </ul>
+    </div>
+  )
+}

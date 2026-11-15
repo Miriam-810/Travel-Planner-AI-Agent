@@ -4,7 +4,7 @@
 
 <!-- TODO（步驟 8）：demo 截圖或 GIF -->
 
-> **目前進度**：第一階段 MVP 開發中，已完成步驟 2（資料模型和範例資料）／9。詳見 [實作計畫](docs/PLAN.md)。
+> **目前進度**：第一階段 MVP 開發中，已完成步驟 3（行程頁，尚未加地圖）／9。詳見 [實作計畫](docs/PLAN.md)。
 
 ## 功能
 
@@ -42,8 +42,7 @@
 
 - Python 3.13 以上
 - [uv](https://docs.astral.sh/uv/)（Python 套件管理）：macOS 可以用 `brew install uv` 安裝
-
-<!-- TODO（步驟 3）：Node.js 的版本 -->
+- Node.js 22.12 以上（建議 24）：macOS 可以用 `brew install node@24` 安裝，再依照 Homebrew 的提示把它加進 `PATH`
 
 ### 需要的 API key
 
@@ -74,7 +73,15 @@ uv run uvicorn app.main:app --reload --port 8000
 
 ### 啟動前端
 
-<!-- TODO（步驟 3） -->
+後端要先跑起來（前端會把 `/api` 轉給 `localhost:8000`）。另開一個終端機：
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+打開 <http://localhost:5173>，會看到範例行程頁。
 
 ### 測試
 

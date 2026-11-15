@@ -1,0 +1,53 @@
+@import 'tailwindcss';
+
+/* Design tokens from the 青森・函館 冬之島 page. Single light theme. */
+@theme {
+  --color-paper: #fbf7f1;
+  --color-paper-2: #f4ece2;
+  --color-ink: #1e1a17;
+  --color-ink-soft: #6b625a;
+  --color-line: #e6dbcf;
+  --color-coral: #db6a41;
+  --color-coral-soft: #fbe7dd;
+  --color-coral-deep: #b24a25;
+  --color-sea: #7fafb2;
+  --color-sea-deep: #5d9195;
+  --color-ok: #2f6a43;
+  --color-ok-soft: #e8f1ea;
+  --color-ok-line: #cfe2d3;
+
+  --font-display: 'Fraunces', 'Noto Serif TC', Georgia, serif;
+  --font-body: 'Noto Sans TC', 'PingFang TC', 'Microsoft JhengHei', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-coral);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}

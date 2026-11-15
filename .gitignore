@@ -24,6 +24,9 @@ dist/
 *.sqlite
 *.db
 
+# Local Claude Code preview config (machine-specific paths)
+.claude/launch.json
+
 # Editors
 .vscode/
 .idea/
