@@ -1,0 +1,692 @@
+{
+  "id": "sample-aomori-2026-12",
+  "destination": "青森・函館",
+  "start_date": "2026-12-25",
+  "end_date": "2027-01-01",
+  "travelers": 2,
+  "sample": true,
+  "days": [
+    {
+      "date": "2026-12-25",
+      "title": "抵達青森",
+      "area": "青森市",
+      "weather": {
+        "source": "climate_avg",
+        "high_c": 2.6,
+        "low_c": -2.9,
+        "precip_mm": 5.1,
+        "summary": "雪"
+      },
+      "lodging": "Daiwa Roynet Hotel Aomori",
+      "stops": [
+        {
+          "id": "d1-s1",
+          "name": "LOVINA 買雪靴",
+          "kind": "shop",
+          "meal": null,
+          "place_id": "sample-d1-s1",
+          "arrive": "16:30",
+          "stay_min": 60,
+          "note": "ABC-MART 2F，順便買冰爪、暖暖包",
+          "lat": 40.8277,
+          "lng": 140.7376,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=LOVINA%20%E8%B2%B7%E9%9B%AA%E9%9D%B4%20%E9%9D%92%E6%A3%AE",
+          "hours": {
+            "source": "google_places",
+            "today_text": "10:00–20:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d1-s2",
+          "name": "A-FACTORY",
+          "kind": "shop",
+          "meal": null,
+          "place_id": "sample-d1-s2",
+          "arrive": "17:40",
+          "stay_min": 40,
+          "note": "蘋果西打、伴手禮",
+          "lat": 40.8301,
+          "lng": 140.733,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=A-FACTORY%20%E9%9D%92%E6%A3%AE",
+          "hours": {
+            "source": "google_places",
+            "today_text": "09:00–20:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d1-s3",
+          "name": "お食事処 おさない",
+          "kind": "meal",
+          "meal": "dinner",
+          "place_id": "sample-d1-s3",
+          "arrive": "18:30",
+          "stay_min": 75,
+          "note": "扇貝味噌燒定食",
+          "lat": 40.8278,
+          "lng": 140.7357,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E3%81%8A%E9%A3%9F%E4%BA%8B%E5%87%A6%20%E3%81%8A%E3%81%95%E3%81%AA%E3%81%84%20%E9%9D%92%E6%A3%AE",
+          "hours": {
+            "source": "google_places",
+            "today_text": "07:00–14:00, 17:00–21:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "date": "2026-12-26",
+      "title": "奧入瀨冰瀑導覽",
+      "area": "奧入瀨・十和田",
+      "weather": {
+        "source": "climate_avg",
+        "high_c": 0.4,
+        "low_c": -6.2,
+        "precip_mm": 3.8,
+        "summary": "雪"
+      },
+      "lodging": "Daiwa Roynet Hotel Aomori",
+      "stops": [
+        {
+          "id": "d2-s1",
+          "name": "奥入瀬渓流館",
+          "kind": "sight",
+          "meal": null,
+          "place_id": "sample-d2-s1",
+          "arrive": "10:00",
+          "stay_min": 45,
+          "note": "導覽集合前先逛",
+          "lat": 40.5915,
+          "lng": 141.0002,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E5%A5%A5%E5%85%A5%E7%80%AC%E6%B8%93%E6%B5%81%E9%A4%A8%20%E5%8D%81%E5%92%8C%E7%94%B0",
+          "hours": {
+            "source": "google_places",
+            "today_text": "09:00–16:30",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d2-s2",
+          "name": "十和田バラ焼き 司",
+          "kind": "meal",
+          "meal": "lunch",
+          "place_id": "sample-d2-s2",
+          "arrive": "11:15",
+          "stay_min": 60,
+          "note": "十和田名物バラ焼き",
+          "lat": 40.6127,
+          "lng": 141.2058,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E5%8D%81%E5%92%8C%E7%94%B0%E3%83%90%E3%83%A9%E7%84%BC%E3%81%8D%20%E5%8F%B8%20%E5%8D%81%E5%92%8C%E7%94%B0",
+          "hours": {
+            "source": "google_places",
+            "today_text": "11:00–14:30, 17:00–20:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d2-s3",
+          "name": "奥入瀬渓流 冰瀑導覽",
+          "kind": "sight",
+          "meal": null,
+          "place_id": "sample-d2-s3",
+          "arrive": "13:00",
+          "stay_min": 180,
+          "note": "戶外景點，跟官方導覽巴士進溪谷",
+          "lat": 40.5602,
+          "lng": 140.9622,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E5%A5%A5%E5%85%A5%E7%80%AC%E6%B8%93%E6%B5%81%20%E5%86%B0%E7%80%91%E5%B0%8E%E8%A6%BD%20%E5%8D%81%E5%92%8C%E7%94%B0",
+          "hours": {
+            "source": "google_places",
+            "today_text": null,
+            "open_at_arrive": null,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d2-s4",
+          "name": "長尾中華そば 青森駅前店",
+          "kind": "meal",
+          "meal": "dinner",
+          "place_id": "sample-d2-s4",
+          "arrive": "18:30",
+          "stay_min": 50,
+          "note": "煮干拉麵",
+          "lat": 40.8283,
+          "lng": 140.734,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E9%95%B7%E5%B0%BE%E4%B8%AD%E8%8F%AF%E3%81%9D%E3%81%B0%20%E9%9D%92%E6%A3%AE%E9%A7%85%E5%89%8D%E5%BA%97%20%E9%9D%92%E6%A3%AE",
+          "hours": {
+            "source": "google_places",
+            "today_text": "07:00–21:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        }
+      ],
+      "warnings": [
+        "導覽巴士請提早 15–20 分鐘到七戸十和田駅集合"
+      ]
+    },
+    {
+      "date": "2026-12-27",
+      "title": "弘前城雪景・睡魔之家",
+      "area": "弘前",
+      "weather": {
+        "source": "climate_avg",
+        "high_c": 2.1,
+        "low_c": -3.6,
+        "precip_mm": 4.3,
+        "summary": "雪"
+      },
+      "lodging": "Daiwa Roynet Hotel Aomori",
+      "stops": [
+        {
+          "id": "d3-s1",
+          "name": "弘前公園",
+          "kind": "sight",
+          "meal": null,
+          "place_id": "sample-d3-s1",
+          "arrive": "10:00",
+          "stay_min": 120,
+          "note": "冬季天守閣不開放，找紅色下乘橋",
+          "lat": 40.6074,
+          "lng": 140.4642,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E5%BC%98%E5%89%8D%E5%85%AC%E5%9C%92%20%E5%BC%98%E5%89%8D",
+          "hours": {
+            "source": "google_places",
+            "today_text": "24 小時",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d3-s2",
+          "name": "大正浪漫喫茶室",
+          "kind": "meal",
+          "meal": "lunch",
+          "place_id": "sample-d3-s2",
+          "arrive": "12:15",
+          "stay_min": 60,
+          "note": "蘋果派",
+          "lat": 40.606,
+          "lng": 140.4625,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E5%A4%A7%E6%AD%A3%E6%B5%AA%E6%BC%AB%E5%96%AB%E8%8C%B6%E5%AE%A4%20%E5%BC%98%E5%89%8D",
+          "hours": {
+            "source": "google_places",
+            "today_text": "09:30–17:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d3-s3",
+          "name": "ねぶたの家 ワ・ラッセ",
+          "kind": "sight",
+          "meal": null,
+          "place_id": "sample-d3-s3",
+          "arrive": "16:00",
+          "stay_min": 75,
+          "note": "巨大睡魔燈籠",
+          "lat": 40.8297,
+          "lng": 140.734,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E3%81%AD%E3%81%B6%E3%81%9F%E3%81%AE%E5%AE%B6%20%E3%83%AF%E3%83%BB%E3%83%A9%E3%83%83%E3%82%BB%20%E9%9D%92%E6%A3%AE",
+          "hours": {
+            "source": "google_places",
+            "today_text": "09:00–18:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d3-s4",
+          "name": "津軽じょっぱり漁場",
+          "kind": "meal",
+          "meal": "dinner",
+          "place_id": "sample-d3-s4",
+          "arrive": "18:30",
+          "stay_min": 90,
+          "note": "海鮮居酒屋",
+          "lat": 40.827,
+          "lng": 140.7375,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E6%B4%A5%E8%BB%BD%E3%81%98%E3%82%87%E3%81%A3%E3%81%B1%E3%82%8A%E6%BC%81%E5%A0%B4%20%E9%9D%92%E6%A3%AE",
+          "hours": {
+            "source": "google_places",
+            "today_text": "17:00–23:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        }
+      ],
+      "warnings": [
+        "16:00 前回到青森，睡魔之家傍晚就關門"
+      ]
+    },
+    {
+      "date": "2026-12-28",
+      "title": "在青森上班",
+      "area": "青森市",
+      "weather": {
+        "source": "climate_avg",
+        "high_c": 2.6,
+        "low_c": -2.9,
+        "precip_mm": 5.1,
+        "summary": "雪"
+      },
+      "lodging": "Daiwa Roynet Hotel Aomori",
+      "stops": [
+        {
+          "id": "d4-s1",
+          "name": "青森魚菜センター（のっけ丼）",
+          "kind": "meal",
+          "meal": "lunch",
+          "place_id": "sample-d4-s1",
+          "arrive": "12:00",
+          "stay_min": 45,
+          "note": "午休吃のっけ丼",
+          "lat": 40.8247,
+          "lng": 140.7383,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E9%9D%92%E6%A3%AE%E9%AD%9A%E8%8F%9C%E3%82%BB%E3%83%B3%E3%82%BF%E3%83%BC%EF%BC%88%E3%81%AE%E3%81%A3%E3%81%91%E4%B8%BC%EF%BC%89%20%E9%9D%92%E6%A3%AE",
+          "hours": {
+            "source": "google_places",
+            "today_text": "07:00–16:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d4-s2",
+          "name": "末廣ラーメン本舗 青森分店",
+          "kind": "meal",
+          "meal": "dinner",
+          "place_id": "sample-d4-s2",
+          "arrive": "19:30",
+          "stay_min": 50,
+          "note": "營業到半夜",
+          "lat": 40.8255,
+          "lng": 140.74,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E6%9C%AB%E5%BB%A3%E3%83%A9%E3%83%BC%E3%83%A1%E3%83%B3%E6%9C%AC%E8%88%97%20%E9%9D%92%E6%A3%AE%E5%88%86%E5%BA%97%20%E9%9D%92%E6%A3%AE",
+          "hours": {
+            "source": "google_places",
+            "today_text": "11:00–翌 02:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        }
+      ],
+      "warnings": [
+        "整天上班：日本 10:00–19:00 ＝ 台灣 9:00–18:00"
+      ]
+    },
+    {
+      "date": "2026-12-29",
+      "title": "渡海到函館・函館山夜景",
+      "area": "函館",
+      "weather": {
+        "source": "climate_avg",
+        "high_c": 1.2,
+        "low_c": -5.0,
+        "precip_mm": 2.9,
+        "summary": "陰時有雪"
+      },
+      "lodging": "La'gent Stay 函館駅前",
+      "stops": [
+        {
+          "id": "d5-s1",
+          "name": "きくよ食堂 本店",
+          "kind": "meal",
+          "meal": "lunch",
+          "place_id": "sample-d5-s1",
+          "arrive": "12:30",
+          "stay_min": 60,
+          "note": "函館朝市的元祖巴丼",
+          "lat": 41.773,
+          "lng": 140.7262,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E3%81%8D%E3%81%8F%E3%82%88%E9%A3%9F%E5%A0%82%20%E6%9C%AC%E5%BA%97%20%E5%87%BD%E9%A4%A8",
+          "hours": {
+            "source": "google_places",
+            "today_text": "06:00–14:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d5-s2",
+          "name": "函館山ロープウェイ",
+          "kind": "sight",
+          "meal": null,
+          "place_id": "sample-d5-s2",
+          "arrive": "16:00",
+          "stay_min": 120,
+          "note": "日本三大夜景",
+          "lat": 41.759,
+          "lng": 140.712,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E5%87%BD%E9%A4%A8%E5%B1%B1%E3%83%AD%E3%83%BC%E3%83%97%E3%82%A6%E3%82%A7%E3%82%A4%20%E5%87%BD%E9%A4%A8",
+          "hours": {
+            "source": "google_places",
+            "today_text": "10:00–21:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d5-s3",
+          "name": "ラッキーピエロ ベイエリア本店",
+          "kind": "meal",
+          "meal": "dinner",
+          "place_id": "sample-d5-s3",
+          "arrive": "18:30",
+          "stay_min": 60,
+          "note": "函館限定漢堡",
+          "lat": 41.7666,
+          "lng": 140.7175,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E3%83%A9%E3%83%83%E3%82%AD%E3%83%BC%E3%83%94%E3%82%A8%E3%83%AD%20%E3%83%99%E3%82%A4%E3%82%A8%E3%83%AA%E3%82%A2%E6%9C%AC%E5%BA%97%20%E5%87%BD%E9%A4%A8",
+          "hours": {
+            "source": "google_places",
+            "today_text": "10:00–22:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        }
+      ],
+      "warnings": [
+        "年底傍晚纜車可能排到 2 小時，能早上山就早上山"
+      ]
+    },
+    {
+      "date": "2026-12-30",
+      "title": "函館市區一日",
+      "area": "函館",
+      "weather": {
+        "source": "climate_avg",
+        "high_c": 1.2,
+        "low_c": -5.0,
+        "precip_mm": 2.9,
+        "summary": "陰時有雪"
+      },
+      "lodging": "La'gent Stay 函館駅前",
+      "stops": [
+        {
+          "id": "d6-s1",
+          "name": "金森赤レンガ倉庫",
+          "kind": "shop",
+          "meal": null,
+          "place_id": "sample-d6-s1",
+          "arrive": "10:00",
+          "stay_min": 90,
+          "note": "港邊紅磚倉庫",
+          "lat": 41.7665,
+          "lng": 140.717,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E9%87%91%E6%A3%AE%E8%B5%A4%E3%83%AC%E3%83%B3%E3%82%AC%E5%80%89%E5%BA%AB%20%E5%87%BD%E9%A4%A8",
+          "hours": {
+            "source": "google_places",
+            "today_text": "09:30–19:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d6-s2",
+          "name": "八幡坂",
+          "kind": "sight",
+          "meal": null,
+          "place_id": "sample-d6-s2",
+          "arrive": "11:40",
+          "stay_min": 30,
+          "note": "坂道結冰，套冰爪",
+          "lat": 41.7637,
+          "lng": 140.7128,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E5%85%AB%E5%B9%A1%E5%9D%82%20%E5%87%BD%E9%A4%A8",
+          "hours": {
+            "source": "google_places",
+            "today_text": "24 小時",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d6-s3",
+          "name": "函館麺厨房あじさい 紅店",
+          "kind": "meal",
+          "meal": "lunch",
+          "place_id": "sample-d6-s3",
+          "arrive": "12:20",
+          "stay_min": 60,
+          "note": "鹽味拉麵",
+          "lat": 41.7663,
+          "lng": 140.7172,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E5%87%BD%E9%A4%A8%E9%BA%BA%E5%8E%A8%E6%88%BF%E3%81%82%E3%81%98%E3%81%95%E3%81%84%20%E7%B4%85%E5%BA%97%20%E5%87%BD%E9%A4%A8",
+          "hours": {
+            "source": "google_places",
+            "today_text": "11:00–20:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d6-s4",
+          "name": "五稜郭タワー",
+          "kind": "sight",
+          "meal": null,
+          "place_id": "sample-d6-s4",
+          "arrive": "14:00",
+          "stay_min": 90,
+          "note": "從塔上看星形城郭",
+          "lat": 41.7944,
+          "lng": 140.7542,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E4%BA%94%E7%A8%9C%E9%83%AD%E3%82%BF%E3%83%AF%E3%83%BC%20%E5%87%BD%E9%A4%A8",
+          "hours": {
+            "source": "google_places",
+            "today_text": "09:00–18:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d6-s5",
+          "name": "湯の川温泉",
+          "kind": "sight",
+          "meal": null,
+          "place_id": "sample-d6-s5",
+          "arrive": "16:00",
+          "stay_min": 120,
+          "note": "溫泉街，搭市電就到",
+          "lat": 41.779,
+          "lng": 140.7895,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E6%B9%AF%E3%81%AE%E5%B7%9D%E6%B8%A9%E6%B3%89%20%E5%87%BD%E9%A4%A8",
+          "hours": {
+            "source": "google_places",
+            "today_text": null,
+            "open_at_arrive": null,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d6-s6",
+          "name": "函館海鮮居酒屋 魚まさ 五稜郭総本店",
+          "kind": "meal",
+          "meal": "dinner",
+          "place_id": "sample-d6-s6",
+          "arrive": "18:45",
+          "stay_min": 90,
+          "note": "回程順路",
+          "lat": 41.7905,
+          "lng": 140.752,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E5%87%BD%E9%A4%A8%E6%B5%B7%E9%AE%AE%E5%B1%85%E9%85%92%E5%B1%8B%20%E9%AD%9A%E3%81%BE%E3%81%95%20%E4%BA%94%E7%A8%9C%E9%83%AD%E7%B7%8F%E6%9C%AC%E5%BA%97%20%E5%87%BD%E9%A4%A8",
+          "hours": {
+            "source": "google_places",
+            "today_text": "17:00–23:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "date": "2026-12-31",
+      "title": "除夕・回青森",
+      "area": "函館",
+      "weather": {
+        "source": "climate_avg",
+        "high_c": 1.2,
+        "low_c": -5.0,
+        "precip_mm": 2.9,
+        "summary": "陰時有雪"
+      },
+      "lodging": "Dormy Inn Aomori",
+      "stops": [
+        {
+          "id": "d7-s1",
+          "name": "函館朝市",
+          "kind": "shop",
+          "meal": null,
+          "place_id": "sample-d7-s1",
+          "arrive": "08:30",
+          "stay_min": 60,
+          "note": "買伴手禮",
+          "lat": 41.7733,
+          "lng": 140.7262,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E5%87%BD%E9%A4%A8%E6%9C%9D%E5%B8%82%20%E5%87%BD%E9%A4%A8",
+          "hours": {
+            "source": "google_places",
+            "today_text": "06:00–14:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d7-s2",
+          "name": "ハセガワストア ベイエリア店",
+          "kind": "meal",
+          "meal": "lunch",
+          "place_id": "sample-d7-s2",
+          "arrive": "11:30",
+          "stay_min": 40,
+          "note": "やきとり弁当，帶上新幹線也可以",
+          "lat": 41.7667,
+          "lng": 140.7187,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E3%83%8F%E3%82%BB%E3%82%AC%E3%83%AF%E3%82%B9%E3%83%88%E3%82%A2%20%E3%83%99%E3%82%A4%E3%82%A8%E3%83%AA%E3%82%A2%E5%BA%97%20%E5%87%BD%E9%A4%A8",
+          "hours": {
+            "source": "google_places",
+            "today_text": "07:00–22:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d7-s3",
+          "name": "Dormy Inn 夜鳴きそば",
+          "kind": "meal",
+          "meal": "dinner",
+          "place_id": "sample-d7-s3",
+          "arrive": "21:30",
+          "stay_min": 30,
+          "note": "飯店免費宵夜拉麵，當跨年蕎麥麵",
+          "lat": 40.8268,
+          "lng": 140.74,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=Dormy%20Inn%20%E5%A4%9C%E9%B3%B4%E3%81%8D%E3%81%9D%E3%81%B0%20%E9%9D%92%E6%A3%AE",
+          "hours": {
+            "source": "google_places",
+            "today_text": "21:30–23:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        }
+      ],
+      "warnings": [
+        "除夕很多店提早關門，想吃大餐要先訂位",
+        "年末年始營業時間可能變動，出發前請再確認"
+      ]
+    },
+    {
+      "date": "2027-01-01",
+      "title": "新年參拜・回台灣",
+      "area": "青森市",
+      "weather": {
+        "source": "climate_avg",
+        "high_c": 2.6,
+        "low_c": -2.9,
+        "precip_mm": 5.1,
+        "summary": "雪"
+      },
+      "lodging": null,
+      "stops": [
+        {
+          "id": "d8-s1",
+          "name": "善知鳥神社",
+          "kind": "sight",
+          "meal": null,
+          "place_id": "sample-d8-s1",
+          "arrive": "09:30",
+          "stay_min": 45,
+          "note": "新年參拜",
+          "lat": 40.8268,
+          "lng": 140.7429,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E5%96%84%E7%9F%A5%E9%B3%A5%E7%A5%9E%E7%A4%BE%20%E9%9D%92%E6%A3%AE",
+          "hours": {
+            "source": "google_places",
+            "today_text": "24 小時",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        },
+        {
+          "id": "d8-s2",
+          "name": "青森空港 レストラン",
+          "kind": "meal",
+          "meal": "lunch",
+          "place_id": "sample-d8-s2",
+          "arrive": "13:00",
+          "stay_min": 45,
+          "note": "15:30 起飛，12:40 前到機場",
+          "lat": 40.7347,
+          "lng": 140.6908,
+          "maps_url": "https://www.google.com/maps/search/?api=1&query=%E9%9D%92%E6%A3%AE%E7%A9%BA%E6%B8%AF%20%E3%83%AC%E3%82%B9%E3%83%88%E3%83%A9%E3%83%B3%20%E9%9D%92%E6%A3%AE",
+          "hours": {
+            "source": "google_places",
+            "today_text": "10:00–17:00",
+            "open_at_arrive": true,
+            "business_status": "OPERATIONAL",
+            "checked_at": "2026-11-15T10:00:00+09:00"
+          }
+        }
+      ],
+      "warnings": [
+        "元旦巴士可能減班，下雪也可能塞車",
+        "年末年始營業時間可能變動，出發前請再確認"
+      ]
+    }
+  ]
+}

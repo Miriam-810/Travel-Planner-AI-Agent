@@ -4,7 +4,7 @@
 
 <!-- TODO（步驟 8）：demo 截圖或 GIF -->
 
-> **目前進度**：第一階段 MVP 開發中，已完成步驟 1（後端骨架）／9。詳見 [實作計畫](docs/PLAN.md)。
+> **目前進度**：第一階段 MVP 開發中，已完成步驟 2（資料模型和範例資料）／9。詳見 [實作計畫](docs/PLAN.md)。
 
 ## 功能
 
@@ -69,6 +69,8 @@ uv run uvicorn app.main:app --reload --port 8000
 ```
 
 打開 <http://localhost:8000/api/health>，看到 `{"status":"ok", ...}` 就代表啟動成功。API 文件在 <http://localhost:8000/docs>。
+
+範例行程（青森・函館 8 天）在 <http://localhost:8000/api/trips/sample>，不需要任何 key。範例裡的營業時間僅供示意。
 
 ### 啟動前端
 
