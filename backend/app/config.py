@@ -12,6 +12,18 @@ class Settings(BaseSettings):
     # claude-opus-5-5 for evals and demos.
     model: str = "claude-haiku-5-5"
 
+    # Reasoning effort, always sent explicitly: low | medium | high | xhigh | max.
+    effort: str = "medium"
+
+    # Anthropic API key for the planning agent. Empty → POST /api/outline returns 503.
+    anthropic_api_key: str = ""
+
+    # Comma-separated invite codes that may generate outlines, and the daily limits.
+    invite_codes: str = ""
+    daily_limit_per_code: int = 3
+    daily_limit_site: int = 20
+    usage_db_path: str = "usage.sqlite"
+
     # Server-side key for Google Places API (New). Empty → POST /api/trips only
     # accepts the sample trip's place ids.
     google_places_api_key: str = ""
@@ -20,6 +32,10 @@ class Settings(BaseSettings):
     # development the Vite dev server proxies /api, so this is only needed once
     # the frontend is deployed on another domain.
     cors_origins: str = ""
+
+    @property
+    def invite_code_set(self) -> set[str]:
+        return {c.strip() for c in self.invite_codes.split(",") if c.strip()}
 
     @property
     def cors_origin_list(self) -> list[str]:

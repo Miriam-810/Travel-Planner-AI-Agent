@@ -4,7 +4,7 @@
 
 <!-- TODO（步驟 8）：demo 截圖或 GIF -->
 
-> **目前進度**：第一階段 MVP 開發中，已完成步驟 6（營業時間）／9。詳見 [實作計畫](docs/PLAN.md)。
+> **目前進度**：第一階段 MVP 開發中，已完成步驟 7（AI 排行程）／9。詳見 [實作計畫](docs/PLAN.md)。
 
 ## 功能
 
@@ -50,11 +50,10 @@
 | --- | --- | --- | --- |
 | Google Maps JavaScript API key＋Map ID | 前端顯示地圖 | 步驟 4 | Google Cloud Console，見 [Google 地圖設定教學](docs/GOOGLE_MAPS_SETUP.md) |
 | Google Places API (New) key | 查店家、景點的座標和營業時間 | 步驟 6 | Google Cloud Console，見 [Google Places 設定教學](docs/GOOGLE_PLACES_SETUP.md) |
-| Anthropic API key | 讓 Claude 排行程 | 步驟 7 | Anthropic Console |
+| Anthropic API key | 讓 Claude 排行程 | 步驟 7 | Claude Platform，見 [Anthropic API 設定教學](docs/ANTHROPIC_SETUP.md) |
 
 天氣使用 [Open-Meteo](https://open-meteo.com/)，非商業用途免費，不需要 key。
 
-<!-- TODO（步驟 7）：Anthropic key 的申請步驟和花費上限 -->
 
 > **控制費用**：請在 Google Cloud 設定每日配額和預算警示，在 Anthropic Console 設定每月花費上限。開發時可以設 `MODEL=claude-haiku-5-5` 省錢。
 
@@ -72,6 +71,16 @@ uv run uvicorn app.main:app --reload --port 8000
 範例行程（青森・函館 8 天）在 <http://localhost:8000/api/trips/sample>，不需要任何 key。範例裡的營業時間僅供示意。
 
 `backend/.env` 填了 `GOOGLE_PLACES_API_KEY` 後，`POST /api/trips` 會用 Google Places 查每個地點的座標和營業時間，抵達時沒營業、已歇業或遇到年末年始等連假，會在當天加上提醒。沒填 key 時只認得範例行程裡的地點。
+
+#### 產生行程（需要 Anthropic 和 Places key）
+
+| API | 作用 | 邀請碼 | 計入每日額度 |
+| --- | --- | --- | --- |
+| `POST /api/outline` | 送出需求表單，Claude 查天氣、找店，排出行程大綱 | 要 | 要（失敗不算） |
+| `POST /api/trips` | 送出確認後的大綱，補上天氣、營業時間、住宿，產生完整行程 | 要 | 不算 |
+| `GET /api/invite` | 檢查邀請碼，回傳今天還能產生幾份 | 要 | 不算 |
+
+邀請碼放在 HTTP header `X-Invite-Code`，有效的碼寫在 `backend/.env` 的 `INVITE_CODES`。每個碼每天 3 份、全站每天 20 份，可以用 `DAILY_LIMIT_PER_CODE`、`DAILY_LIMIT_SITE` 調整，日本時間午夜歸零。次數記在 `backend/usage.sqlite`。
 
 ### 啟動前端
 
@@ -108,6 +117,13 @@ uv run python -m scripts.check_weather 41.77 140.73 2026-12-30  # 指定座標�
 cd backend
 uv run python -m scripts.check_places                                              # 青森站附近的拉麵，12/25 中午
 uv run python -m scripts.check_places "函館 朝市 海鮮丼" 41.77 140.73 2026-12-30 08:30  # 指定搜尋、座標、日期和時間
+```
+
+實際讓 Claude 排一次 5 天的青森行程（需要 Anthropic 和 Places key，會花錢，最後會印出用量和估計費用）：
+
+```bash
+cd backend
+uv run python -m scripts.check_outline
 ```
 
 ---

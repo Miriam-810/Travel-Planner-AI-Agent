@@ -5,7 +5,10 @@ from datetime import date, timedelta
 import httpx2
 import pytest
 
+from app.limits import UsageLimiter
 from app.tools import places, weather
+
+INVITE = {"X-Invite-Code": "test-code"}
 
 
 @pytest.fixture
@@ -55,3 +58,7 @@ class FakeOpenMeteo:
 
     def client(self) -> httpx2.AsyncClient:
         return httpx2.AsyncClient(transport=httpx2.MockTransport(self.handler))
+
+
+def make_limiter(tmp_path, *, per_code=3, per_site=20) -> UsageLimiter:
+    return UsageLimiter(tmp_path / "usage.sqlite", {"test-code", "other-code"}, per_code=per_code, per_site=per_site)

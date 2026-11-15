@@ -45,7 +45,9 @@ MAX_CANDIDATES = 3
 CURRENT_HOURS_DAYS = 7  # currentOpeningHours covers today + 6 days, holidays included
 CACHE_TTL_S = 3 * 60 * 60
 TIMEOUT_S = 10.0
-LANGUAGE = "zh-TW"
+# Japanese, so names come back as the shop's own name (e.g. 青森魚菜センター), never a
+# romanised fallback like "Yokochou" when Google has no Chinese name for the place.
+LANGUAGE = "ja"
 REGION = "JP"
 
 

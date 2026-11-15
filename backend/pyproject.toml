@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "FastAPI backend and agent loop for the Travel Planner AI Agent"
 requires-python = ">=3.13"
 dependencies = [
+    "anthropic>=2.8.0",
     "fastapi>=0.163.0",
     "httpx2>=2.16.0",
     "pydantic-settings>=2.16.3",

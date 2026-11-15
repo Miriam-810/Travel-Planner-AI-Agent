@@ -4,10 +4,10 @@ import httpx2
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app, get_http_client, get_place_resolver, load_sample_trip
+from app.main import app, get_http_client, get_limiter, get_place_resolver, load_sample_trip
 from app.models import LodgingInput
 from app.trip_builder import lodging_for_night, sample_place_resolver
-from tests.conftest import FakeOpenMeteo
+from tests.conftest import INVITE, FakeOpenMeteo, make_limiter
 
 
 def outline_from_sample() -> dict:
@@ -42,14 +42,15 @@ REQUEST = {
 
 
 @pytest.fixture
-def client_with(request):
+def client_with(request, tmp_path):
     """TestClient whose outbound HTTP goes to a FakeOpenMeteo."""
     fake: FakeOpenMeteo = request.param if hasattr(request, "param") else FakeOpenMeteo()
     http = fake.client()
     app.dependency_overrides[get_http_client] = lambda: http
     # Sample place ids, whether or not a real Places key is in backend/.env.
     app.dependency_overrides[get_place_resolver] = lambda: sample_place_resolver(load_sample_trip())
-    yield TestClient(app), fake
+    app.dependency_overrides[get_limiter] = lambda: make_limiter(tmp_path)
+    yield TestClient(app, headers=INVITE), fake
     app.dependency_overrides.clear()
 
 

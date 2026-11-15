@@ -5,7 +5,7 @@ import httpx2
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app, get_http_client, get_place_resolver
+from app.main import app, get_http_client, get_limiter, get_place_resolver
 from app.tools.places import (
     DETAILS_URL,
     SEARCH_URL,
@@ -16,6 +16,7 @@ from app.tools.places import (
     search_place,
 )
 from app.trip_builder import google_place_resolver
+from tests.conftest import INVITE, make_limiter
 
 pytestmark = pytest.mark.anyio
 
@@ -78,7 +79,7 @@ async def test_search_sends_key_field_mask_and_location_bias():
     assert req.headers["X-Goog-Api-Key"] == KEY
     assert "places.regularOpeningHours" in req.headers["X-Goog-FieldMask"]
     body = json.loads(req.content)
-    assert body["textQuery"] == "拉麵" and body["languageCode"] == "zh-TW" and body["pageSize"] == 3
+    assert body["textQuery"] == "拉麵" and body["languageCode"] == "ja" and body["pageSize"] == 3
     assert body["locationBias"]["circle"]["radius"] == 2000
 
 
@@ -164,13 +165,14 @@ REQUEST = {"destination": "青森", "start_date": "2026-12-07", "end_date": "202
 
 
 @pytest.fixture
-def google_client():
+def google_client(tmp_path):
     fake = FakePlaces(STOPS)
     places_http = fake.client()
     weather_down = httpx2.AsyncClient(transport=httpx2.MockTransport(lambda r: httpx2.Response(503)))
     app.dependency_overrides[get_http_client] = lambda: weather_down
     app.dependency_overrides[get_place_resolver] = lambda: google_place_resolver(places_http, KEY)
-    yield TestClient(app), fake
+    app.dependency_overrides[get_limiter] = lambda: make_limiter(tmp_path)
+    yield TestClient(app, headers=INVITE), fake
     app.dependency_overrides.clear()
 
 
