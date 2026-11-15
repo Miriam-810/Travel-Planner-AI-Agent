@@ -4,7 +4,7 @@
 
 <!-- TODO（步驟 8）：demo 截圖或 GIF -->
 
-> **目前進度**：第一階段 MVP 開發中，已完成步驟 4（地圖和連動）／9。詳見 [實作計畫](docs/PLAN.md)。
+> **目前進度**：第一階段 MVP 開發中，已完成步驟 5（天氣）／9。詳見 [實作計畫](docs/PLAN.md)。
 
 ## 功能
 
@@ -90,6 +90,14 @@ npm run dev
 ```bash
 cd backend
 uv run pytest
+```
+
+測試都用假資料，不會呼叫外部 API。想實際查一次天氣（Open-Meteo，不需要 key）：
+
+```bash
+cd backend
+uv run python -m scripts.check_weather                          # 青森：3 天後（預報）和 12/25（歷史平均）
+uv run python -m scripts.check_weather 41.77 140.73 2026-12-30  # 指定座標和日期
 ```
 
 ---
