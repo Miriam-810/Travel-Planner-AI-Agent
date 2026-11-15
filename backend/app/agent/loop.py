@@ -15,7 +15,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.agent.prompts import first_message, system_prompt
+from app.agent.prompts import MAX_TOOL_CALLS, MAX_TURNS, first_message, system_prompt
 from app.agent.tools import TOOLS, clamp_radius, search_result, weather_result
 from app.agent.validate import validate_outline
 from app.models import TripOutline, TripRequest, Weather
@@ -24,8 +24,6 @@ from app.tools.weather import WeatherError
 
 log = logging.getLogger(__name__)
 
-MAX_TURNS = 12
-MAX_TOOL_CALLS = 60
 MAX_SUBMIT_RETRIES = 2
 MAX_NUDGES = 1
 MAX_TOKENS = 16000

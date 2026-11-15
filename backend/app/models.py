@@ -14,8 +14,8 @@ from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
-MIN_TRIP_DAYS = 5
-MAX_TRIP_DAYS = 8
+MIN_TRIP_DAYS = 1
+MAX_TRIP_DAYS = 10
 
 # Limits on everything a client can send. Free text goes into Claude's prompt on
 # every turn, and every stop costs a Google Places call, so nothing is unbounded.
@@ -89,6 +89,8 @@ class TripRequest(BaseModel):
         days = (self.end_date - self.start_date).days + 1
         if not MIN_TRIP_DAYS <= days <= MAX_TRIP_DAYS:
             raise ValueError(f"trip must be {MIN_TRIP_DAYS}–{MAX_TRIP_DAYS} days, got {days}")
+        if days == 1 and self.arrival_time and self.departure_time and self.arrival_time >= self.departure_time:
+            raise ValueError("on a one-day trip the arrival must be before the departure")
         return self
 
 

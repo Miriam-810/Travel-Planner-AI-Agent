@@ -14,15 +14,18 @@ interface Props {
   onRemove: (id: string) => void
 }
 
-/** The night globe on the home page, with an island for every trip planned on this device. */
+/** The globe on the home page, with an island for every trip planned on this device. */
 export function GlobeHero({ trips, onOpen, onRemove }: Props) {
   const [hovered, setHovered] = useState<string | null>(null)
   const hoveredTrip = trips.find((e) => e.trip.id === hovered)?.trip
 
   return (
-    <section className="mb-8">
-      <div className="relative h-[clamp(260px,42vh,400px)] overflow-hidden rounded-[28px] bg-[radial-gradient(120%_90%_at_50%_30%,#1d2c47_0%,#0f1729_60%,#0a1020_100%)] shadow-[var(--shadow-card)]">
-        <Suspense fallback={null}>
+    // Wider than the form on large screens: the globe is the page's centrepiece.
+    <section className="relative left-1/2 mb-8 w-[min(920px,calc(100vw-32px))] -translate-x-1/2">
+      <div className="relative h-[clamp(300px,46vh,420px)] overflow-hidden rounded-[28px] bg-[#05070d] shadow-[var(--shadow-card)] sm:h-[clamp(380px,62vh,620px)]">
+        <Suspense
+          fallback={<p className="absolute inset-0 m-0 grid place-items-center text-[13px] text-white/50">地球載入中…</p>}
+        >
           <GlobeScene trips={trips} onOpen={onOpen} onHover={setHovered} />
         </Suspense>
 

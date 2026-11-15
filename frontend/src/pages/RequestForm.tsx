@@ -19,8 +19,8 @@ import { monthDay } from '../lib/format'
 import type { LodgingInput, TripRequest } from '../types'
 
 // Mirrors the backend limits in app/models.py.
-const MIN_DAYS = 5
-const MAX_DAYS = 8
+const MIN_DAYS = 1
+const MAX_DAYS = 10
 const MAX_PREFERENCES = 10
 const MAX_LODGINGS = 10
 const MAX_BUDGET = 1_000_000
@@ -137,11 +137,11 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
     },
     {
       title: '什麼時候出發？',
-      subtitle: `目前可以排 ${MIN_DAYS}–${MAX_DAYS} 天的行程`,
+      subtitle: `最多可以排 ${MAX_DAYS} 天`,
       check: () => {
         if (!draft.start_date || !draft.end_date) return '請選出發和回程日期'
         if (days === null || days < 1) return '回程日期不能早於出發日期'
-        if (days < MIN_DAYS || days > MAX_DAYS) return `目前支援 ${MIN_DAYS}–${MAX_DAYS} 天（現在是 ${days} 天）`
+        if (days < MIN_DAYS || days > MAX_DAYS) return `目前最多 ${MAX_DAYS} 天（現在是 ${days} 天）`
         return null
       },
       body: (
@@ -177,7 +177,10 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
       title: '班機幾點抵達、幾點回程？',
       subtitle: '知道的話，第一天和最後一天會排得剛剛好',
       optional: true,
-      check: () => null,
+      check: () =>
+        days === 1 && draft.arrival_time && draft.departure_time && draft.arrival_time >= draft.departure_time
+          ? '一日遊的話，抵達時間要早於回程起飛時間'
+          : null,
       body: (
         <div className="flex flex-col gap-3">
           <Field label="去程班機抵達日本" htmlFor="arrival">
@@ -440,7 +443,7 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
       <header className="mb-6 flex flex-col items-center text-center">
         <IslandMark />
         <h1 className="m-0 mt-2 text-[26px] leading-tight text-ink">旅程小島</h1>
-        <p className="m-0 mt-1 text-[15px] text-ink-soft">回答幾個問題，幫你排好日本自由行</p>
+        <p className="m-0 mt-1 text-[15px] text-ink-soft">一起規劃行程吧</p>
       </header>
 
       {globe}

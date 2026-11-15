@@ -17,6 +17,10 @@ from app.models import TripRequest
 from app.providers.base import Country
 from app.trip_builder import lodging_for_night
 
+# The agent's budget, sized for the longest trip (10 days: ~10 weather calls and ~50 searches).
+MAX_TURNS = 16
+MAX_TOOL_CALLS = 80
+
 
 def system_prompt(country: Country) -> str:
     """The same rules for every country; only the country name and the local language differ."""
@@ -26,7 +30,7 @@ def system_prompt(country: Country) -> str:
 How to work:
 1. Decide the main area of each day first. Keep each day within one area so travel stays short. Where the traveller has booked a hotel, the day should end near it.
 2. Call get_weather once per day (all in one turn). On snowy or rainy days, prefer indoor sights.
-3. Find every stop with search_place. Issue all the searches for a day, or for several days, in one turn: you have at most 12 turns and 60 tool calls in total. Each search costs money, so search about once per stop and don't search again for places you already have.
+3. Find every stop with search_place. Issue all the searches for a day, or for several days, in one turn: you have at most {MAX_TURNS} turns and {MAX_TOOL_CALLS} tool calls in total. Each search costs money, so search about once per stop and don't search again for places you already have.
 4. Call submit_outline with the whole trip. If it returns problems, fix exactly those and submit again.
 
 Rules the program checks (an outline that breaks them comes back to you):

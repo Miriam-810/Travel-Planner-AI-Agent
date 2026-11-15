@@ -1,4 +1,4 @@
-// The home page globe: a dark low-poly earth you can spin, with a little
+// The home page globe: a dim low-poly earth in dark space that you can spin, with a little
 // island floating over every trip this device has planned. Trips still ahead
 // are islands under construction (see-through, with a flag); finished trips
 // are built and glow.
@@ -6,6 +6,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
+import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { tripCentre, tripStatus, type SavedTrip, type TripStatus } from '../lib/library'
 import { palette3d } from '../island/palette3d'
 import { seeded } from '../island/random'
@@ -50,19 +51,22 @@ function Scene({ trips, onOpen, onHover }: GlobeProps) {
   const light = useRef<THREE.DirectionalLight>(null)
   const { camera } = useThree()
 
-  // The moonlight follows the camera, so whichever side you look at is lit.
+  // The sun shines from the right of wherever you look from, so the right of
+  // the globe is in daylight and the left fades towards night.
   useFrame(() => {
     if (!light.current) return
-    const side = new THREE.Vector3().crossVectors(camera.position, camera.up).normalize()
-    light.current.position.copy(camera.position).addScaledVector(side, -1.2).addScaledVector(camera.up, 1.4)
+    const right = new THREE.Vector3().crossVectors(camera.up, camera.position).normalize()
+    light.current.position.copy(camera.position).multiplyScalar(0.35).addScaledVector(right, 3).addScaledVector(camera.up, 0.8)
   })
 
   return (
     <>
-      <ambientLight intensity={0.55} color="#8fa3c8" />
-      <directionalLight ref={light} intensity={1.6} color="#d6e2ff" />
+      <ambientLight intensity={0.12} color="#8ea6e6" />
+      <hemisphereLight args={['#9fb8e8', '#0c1222', 0.15]} />
+      <directionalLight ref={light} intensity={1.5} color="#ffe9c8" />
       <Controls reducedMotion={reducedMotion} />
       <Earth />
+      <Clouds reducedMotion={reducedMotion} />
       <Atmosphere />
       <Stars />
       <TripIslands trips={trips} onOpen={onOpen} onHover={onHover} reducedMotion={reducedMotion} />
@@ -117,38 +121,177 @@ function Controls({ reducedMotion }: { reducedMotion: boolean }) {
   return null
 }
 
-const SEA = ['#0f1b31', '#111e36', '#0d182c', '#122039']
-const LAND = ['#4f7a62', '#5a8668', '#47705c', '#628d6c', '#53805f']
-const ICE = ['#9aa9b6', '#a6b4c0', '#8f9fae']
+const SEA = '#123d6e'
+const BEACH = '#7d7053'
+const GREEN = ['#33693a', '#2f6236', '#387140']
+const DESERT = ['#8f7448', '#866c43']
+const ICE = ['#aab6c2', '#a1aebb']
 
-/** Low-poly sphere, each face coloured as sea, land or ice. */
-function Earth() {
-  const geometry = useMemo(() => {
-    const geo = new THREE.IcosahedronGeometry(1, 24)
-    const pos = geo.getAttribute('position')
-    const colors = new Float32Array(pos.count * 3)
-    const rand = seeded('earth')
-    const c = new THREE.Color()
-    const v = new THREE.Vector3()
-    for (let f = 0; f < pos.count; f += 3) {
-      v.set(0, 0, 0)
-      for (let k = 0; k < 3; k++) v.add(new THREE.Vector3().fromBufferAttribute(pos, f + k))
-      v.normalize()
-      const lat = THREE.MathUtils.radToDeg(Math.asin(v.y))
-      const lng = THREE.MathUtils.radToDeg(Math.atan2(v.x, v.z))
-      const pick = (list: string[]) => list[Math.floor(rand() * list.length)]
-      const land = isLand(lat, lng)
-      c.set(land ? (lat > 72 || lat < -60 ? pick(ICE) : pick(LAND)) : pick(SEA))
-      for (let k = 0; k < 3; k++) c.toArray(colors, (f + k) * 3)
+const LAND_HEIGHT = 0.022
+const SHORE_DEPTH = 0.006
+
+/** Rough climate zones, enough for a cartoon earth. */
+function biome(lat: number, lng: number): 'ice' | 'desert' | 'green' {
+  if (lat > 70 || lat < -60 || (lat > 60 && lng > -60 && lng < -15)) return 'ice' // poles, Greenland
+  const inBox = (la1: number, la2: number, ln1: number, ln2: number) => lat > la1 && lat < la2 && lng > ln1 && lng < ln2
+  if (
+    inBox(14, 34, -17, 60) || // Sahara, Arabia
+    inBox(-32, -18, 114, 142) || // inland Australia
+    inBox(38, 46, 78, 108) || // Gobi, Taklamakan
+    inBox(25, 38, -118, -103) || // American south-west
+    inBox(-28, -18, 13, 22) // Namib, Kalahari
+  )
+    return 'desert'
+  return 'green'
+}
+
+function latLng(v: THREE.Vector3): [number, number] {
+  return [THREE.MathUtils.radToDeg(Math.asin(v.y)), THREE.MathUtils.radToDeg(Math.atan2(v.x, v.z))]
+}
+
+interface EarthModel {
+  land: THREE.BufferGeometry
+  /** Points on green land where a tree grows. */
+  trees: THREE.Vector3[]
+}
+
+/** Gentle rolling hills: smooth in position, so the land surface stays soft. */
+function hills(v: THREE.Vector3): number {
+  return 0.55 + 0.25 * Math.sin(v.x * 9.1 + v.z * 4.3) * Math.cos(v.y * 7.7 - v.x * 3.1) + 0.2 * Math.sin(v.z * 15.7 + v.y * 11.9)
+}
+
+/**
+ * The land as one smooth-shaded shell over a round sea. Vertices on land are
+ * lifted; vertices just off the coast sink a little below the sea, so every
+ * coast becomes a sandy slope into the water.
+ */
+function buildEarth(): EarthModel {
+  const ico = new THREE.IcosahedronGeometry(1, 40)
+  ico.deleteAttribute('normal')
+  ico.deleteAttribute('uv')
+  const geo = mergeVertices(ico)
+  const pos = geo.getAttribute('position') as THREE.BufferAttribute
+  const index = geo.getIndex()!
+  const rand = seeded('earth')
+  const v = new THREE.Vector3()
+
+  const land = new Uint8Array(pos.count)
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i)
+    land[i] = isLand(...latLng(v)) ? 1 : 0
+  }
+
+  // Keep only faces that touch land; the sea sphere shows everywhere else.
+  const faces: number[] = []
+  const coast = new Uint8Array(pos.count)
+  for (let f = 0; f < index.count; f += 3) {
+    const [a, b, c] = [index.getX(f), index.getX(f + 1), index.getX(f + 2)]
+    const n = land[a] + land[b] + land[c]
+    if (n === 0) continue
+    faces.push(a, b, c)
+    if (n < 3) for (const k of [a, b, c]) coast[k] = 1
+  }
+  geo.setIndex(faces)
+
+  const colors = new Float32Array(pos.count * 3)
+  const col = new THREE.Color()
+  const trees: THREE.Vector3[] = []
+  const pick = (list: string[]) => list[Math.floor(rand() * list.length)]
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i)
+    const [lat, lng] = latLng(v)
+    const b = biome(lat, lng)
+    if (!land[i]) {
+      v.multiplyScalar(1 - SHORE_DEPTH)
+      col.set(b === 'ice' ? ICE[0] : BEACH)
+    } else {
+      v.multiplyScalar(1 + LAND_HEIGHT * hills(v) * (b === 'ice' ? 0.7 : 1))
+      col.set(coast[i] && b !== 'ice' ? BEACH : b === 'ice' ? pick(ICE) : b === 'desert' ? pick(DESERT) : pick(GREEN))
+      if (b === 'green' && !coast[i] && rand() < 0.05) trees.push(v.clone())
     }
-    geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-    return geo
-  }, [])
+    pos.setXYZ(i, v.x, v.y, v.z)
+    col.toArray(colors, i * 3)
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+  geo.computeVertexNormals()
+  return { land: geo, trees }
+}
+
+function Earth() {
+  const model = useMemo(() => buildEarth(), [])
+  const trees = useRef<THREE.InstancedMesh>(null)
+
+  useEffect(() => {
+    const mesh = trees.current
+    if (!mesh) return
+    const up = new THREE.Vector3(0, 1, 0)
+    const m = new THREE.Matrix4()
+    const q = new THREE.Quaternion()
+    const scale = new THREE.Vector3()
+    const rand = seeded('trees')
+    model.trees.forEach((p, i) => {
+      const dir = p.clone().normalize()
+      q.setFromUnitVectors(up, dir)
+      const s = 0.8 + rand() * 0.6
+      scale.set(s, s, s)
+      m.compose(p.clone().addScaledVector(dir, 0.01 * s), q, scale)
+      mesh.setMatrixAt(i, m)
+    })
+    mesh.instanceMatrix.needsUpdate = true
+  }, [model])
 
   return (
-    <mesh geometry={geometry}>
-      <meshStandardMaterial vertexColors flatShading roughness={0.95} />
-    </mesh>
+    <>
+      <mesh>
+        <sphereGeometry args={[1, 96, 64]} />
+        <meshStandardMaterial color={SEA} roughness={0.75} />
+      </mesh>
+      <mesh geometry={model.land}>
+        <meshStandardMaterial vertexColors roughness={0.9} />
+      </mesh>
+      <instancedMesh ref={trees} args={[undefined, undefined, model.trees.length]}>
+        <coneGeometry args={[0.009, 0.024, 6]} />
+        <meshStandardMaterial color="#24552c" roughness={0.9} />
+      </instancedMesh>
+    </>
+  )
+}
+
+/** Soft white clouds drifting a little above the ground. */
+function Clouds({ reducedMotion }: { reducedMotion: boolean }) {
+  const group = useRef<THREE.Group>(null)
+  const clouds = useMemo(() => {
+    const rand = seeded('clouds')
+    return Array.from({ length: 22 }, () => {
+      const dir = new THREE.Vector3(rand() * 2 - 1, (rand() * 2 - 1) * 0.85, rand() * 2 - 1).normalize()
+      const puffs = Array.from({ length: 2 + Math.floor(rand() * 3) }, (_, i) => ({
+        x: (i - 1) * 0.045 + (rand() - 0.5) * 0.02,
+        z: (rand() - 0.5) * 0.04,
+        r: 0.028 + rand() * 0.022,
+      }))
+      return { dir, q: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir), spin: rand() * Math.PI, puffs }
+    })
+  }, [])
+
+  useFrame((_, delta) => {
+    if (group.current && !reducedMotion) group.current.rotation.y += delta * 0.02
+  })
+
+  return (
+    <group ref={group}>
+      {clouds.map((cl, i) => (
+        <group key={i} position={cl.dir.clone().multiplyScalar(1.1)} quaternion={cl.q}>
+          <group rotation={[0, cl.spin, 0]}>
+            {cl.puffs.map((p, j) => (
+              <mesh key={j} position={[p.x, 0, p.z]} scale={[1, 0.45, 1]}>
+                <icosahedronGeometry args={[p.r, 2]} />
+                <meshStandardMaterial color="#c3ccd8" roughness={1} transparent opacity={0.8} />
+              </mesh>
+            ))}
+          </group>
+        </group>
+      ))}
+    </group>
   )
 }
 
@@ -157,7 +300,7 @@ function Atmosphere() {
   const material = useMemo(
     () =>
       new THREE.ShaderMaterial({
-        uniforms: { color: { value: new THREE.Color('#5d8fe0') } },
+        uniforms: { color: { value: new THREE.Color('#7fc0ff') } },
         vertexShader: /* glsl */ `
           varying vec3 vNormal;
           void main() {
@@ -168,7 +311,7 @@ function Atmosphere() {
           uniform vec3 color;
           varying vec3 vNormal;
           void main() {
-            float rim = pow(0.72 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 3.0);
+            float rim = pow(0.68 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 3.0) * 0.5;
             gl_FragColor = vec4(color, 1.0) * rim;
           }`,
         side: THREE.BackSide,
@@ -179,7 +322,7 @@ function Atmosphere() {
     [],
   )
   return (
-    <mesh scale={1.16} material={material}>
+    <mesh scale={1.14} material={material}>
       <sphereGeometry args={[1, 48, 48]} />
     </mesh>
   )
@@ -199,7 +342,7 @@ function Stars() {
   }, [])
   return (
     <points geometry={geometry}>
-      <pointsMaterial color="#c9d6ff" size={0.09} sizeAttenuation transparent opacity={0.7} depthWrite={false} />
+      <pointsMaterial color="#ffffff" size={0.08} sizeAttenuation transparent opacity={0.85} depthWrite={false} />
     </points>
   )
 }
@@ -284,7 +427,7 @@ function MiniIsland({
 
   useFrame(({ clock }) => {
     if (!group.current) return
-    const lift = 1.03 + (reducedMotion ? 0 : Math.sin(clock.elapsedTime * 1.2 + placed.phase) * 0.006)
+    const lift = 1.06 + (reducedMotion ? 0 : Math.sin(clock.elapsedTime * 1.2 + placed.phase) * 0.006)
     group.current.position.copy(placed.dir).multiplyScalar(lift)
   })
 
@@ -341,7 +484,7 @@ function MiniIsland({
       </group>
 
       {built ? (
-        <sprite position={[0, 0.03, 0]} scale={[0.2, 0.2, 0.2]} raycast={() => null}>
+        <sprite position={[0, 0.03, 0]} scale={[0.28, 0.28, 0.28]} raycast={() => null}>
           <spriteMaterial map={glow} blending={THREE.AdditiveBlending} depthWrite={false} transparent />
         </sprite>
       ) : (

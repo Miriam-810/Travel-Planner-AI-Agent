@@ -28,11 +28,24 @@ class TestTripRequest:
         req = make_request()
         assert (req.end_date - req.start_date).days + 1 == 8
 
-    @pytest.mark.parametrize("days", [4, 9])
-    def test_rejects_trip_outside_five_to_eight_days(self, days):
+    @pytest.mark.parametrize("days", [1, 10])
+    def test_accepts_one_to_ten_days(self, days):
+        start = date(2026, 12, 25)
+        req = make_request(start_date=start, end_date=start + timedelta(days=days - 1))
+        assert (req.end_date - req.start_date).days + 1 == days
+
+    @pytest.mark.parametrize("days", [11, 14])
+    def test_rejects_trips_over_ten_days(self, days):
         start = date(2026, 12, 25)
         with pytest.raises(ValidationError, match="trip must be"):
             make_request(start_date=start, end_date=start + timedelta(days=days - 1))
+
+    def test_one_day_trip_needs_arrival_before_departure(self):
+        day = date(2026, 12, 25)
+        with pytest.raises(ValidationError, match="arrival must be before the departure"):
+            make_request(start_date=day, end_date=day, arrival_time=time(18, 0), departure_time=time(9, 0))
+        ok = make_request(start_date=day, end_date=day, arrival_time=time(9, 0), departure_time=time(20, 0))
+        assert ok.start_date == ok.end_date
 
     def test_rejects_end_before_start(self):
         with pytest.raises(ValidationError, match="end_date"):
