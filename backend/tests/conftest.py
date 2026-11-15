@@ -5,7 +5,7 @@ from datetime import date, timedelta
 import httpx2
 import pytest
 
-from app.tools import weather
+from app.tools import places, weather
 
 
 @pytest.fixture
@@ -14,10 +14,12 @@ def anyio_backend():
 
 
 @pytest.fixture(autouse=True)
-def _clear_weather_cache():
+def _clear_caches():
     weather.clear_cache()
+    places.clear_cache()
     yield
     weather.clear_cache()
+    places.clear_cache()
 
 
 def daily_payload(start: date, end: date, *, high=3.0, low=-3.0, precip=5.0, code=71) -> dict:

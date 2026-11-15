@@ -4,7 +4,7 @@
 
 <!-- TODO（步驟 8）：demo 截圖或 GIF -->
 
-> **目前進度**：第一階段 MVP 開發中，已完成步驟 5（天氣）／9。詳見 [實作計畫](docs/PLAN.md)。
+> **目前進度**：第一階段 MVP 開發中，已完成步驟 6（營業時間）／9。詳見 [實作計畫](docs/PLAN.md)。
 
 ## 功能
 
@@ -49,12 +49,12 @@
 | Key | 用途 | 從哪個步驟開始需要 | 申請位置 |
 | --- | --- | --- | --- |
 | Google Maps JavaScript API key＋Map ID | 前端顯示地圖 | 步驟 4 | Google Cloud Console，見 [Google 地圖設定教學](docs/GOOGLE_MAPS_SETUP.md) |
-| Google Places API (New) key | 查店家、景點的座標和營業時間 | 步驟 6 | Google Cloud Console |
+| Google Places API (New) key | 查店家、景點的座標和營業時間 | 步驟 6 | Google Cloud Console，見 [Google Places 設定教學](docs/GOOGLE_PLACES_SETUP.md) |
 | Anthropic API key | 讓 Claude 排行程 | 步驟 7 | Anthropic Console |
 
 天氣使用 [Open-Meteo](https://open-meteo.com/)，非商業用途免費，不需要 key。
 
-<!-- TODO（步驟 4、6、7）：每把 key 的申請步驟、權限限制，以及怎麼放進 .env -->
+<!-- TODO（步驟 7）：Anthropic key 的申請步驟和花費上限 -->
 
 > **控制費用**：請在 Google Cloud 設定每日配額和預算警示，在 Anthropic Console 設定每月花費上限。開發時可以設 `MODEL=claude-haiku-5-5` 省錢。
 
@@ -70,6 +70,8 @@ uv run uvicorn app.main:app --reload --port 8000
 打開 <http://localhost:8000/api/health>，看到 `{"status":"ok", ...}` 就代表啟動成功。API 文件在 <http://localhost:8000/docs>。
 
 範例行程（青森・函館 8 天）在 <http://localhost:8000/api/trips/sample>，不需要任何 key。範例裡的營業時間僅供示意。
+
+`backend/.env` 填了 `GOOGLE_PLACES_API_KEY` 後，`POST /api/trips` 會用 Google Places 查每個地點的座標和營業時間，抵達時沒營業、已歇業或遇到年末年始等連假，會在當天加上提醒。沒填 key 時只認得範例行程裡的地點。
 
 ### 啟動前端
 
@@ -98,6 +100,14 @@ uv run pytest
 cd backend
 uv run python -m scripts.check_weather                          # 青森：3 天後（預報）和 12/25（歷史平均）
 uv run python -m scripts.check_weather 41.77 140.73 2026-12-30  # 指定座標和日期
+```
+
+實際查一次店家和營業時間（需要 Places key，每次算 1 次 Text Search）：
+
+```bash
+cd backend
+uv run python -m scripts.check_places                                              # 青森站附近的拉麵，12/25 中午
+uv run python -m scripts.check_places "函館 朝市 海鮮丼" 41.77 140.73 2026-12-30 08:30  # 指定搜尋、座標、日期和時間
 ```
 
 ---

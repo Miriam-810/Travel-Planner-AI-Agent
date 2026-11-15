@@ -11,7 +11,8 @@ from pydantic import BaseModel
 
 from app.config import get_settings
 from app.models import Trip, TripOutline, TripRequest
-from app.trip_builder import PlaceNotFound, PlaceResolver, build_trip, sample_place_resolver
+from app.tools.places import PlaceNotFound, PlacesError
+from app.trip_builder import PlaceResolver, build_trip, google_place_resolver, sample_place_resolver
 
 settings = get_settings()
 
@@ -20,7 +21,7 @@ SAMPLE_TRIP_PATH = Path(__file__).parent / "fixtures" / "sample_trip.json"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    # One shared HTTP client for outbound API calls (Open-Meteo, later Places).
+    # One shared HTTP client for outbound API calls (Open-Meteo, Google Places).
     async with httpx2.AsyncClient() as client:
         app.state.http = client
         yield
@@ -46,8 +47,11 @@ def get_http_client(request: Request) -> httpx2.AsyncClient:
     return request.app.state.http
 
 
-def get_place_resolver() -> PlaceResolver:
-    # Step 6 swaps this for the Google Places resolver.
+def get_place_resolver(client: Annotated[httpx2.AsyncClient, Depends(get_http_client)]) -> PlaceResolver:
+    # Without a Places key only the sample trip's place ids resolve, so the
+    # page can still be developed and demoed offline.
+    if settings.google_places_api_key:
+        return google_place_resolver(client, settings.google_places_api_key)
     return sample_place_resolver(load_sample_trip())
 
 
@@ -78,3 +82,5 @@ async def create_trip(
         return await build_trip(body.request, body.outline, client=client, resolve_place=resolve_place)
     except PlaceNotFound as exc:
         raise HTTPException(status_code=422, detail=f"unknown place_id: {exc}") from exc
+    except PlacesError as exc:
+        raise HTTPException(status_code=502, detail="Google Places is unavailable, please try again") from exc

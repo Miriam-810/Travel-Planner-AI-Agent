@@ -28,7 +28,7 @@
 1. 左側選單 → **API 和服務** → **程式庫**。
 2. 搜尋 **Maps JavaScript API** → 啟用。
 
-（Places API (New) 到步驟 6 再啟用。）
+（後端查店家用的 Places API (New) 另見 [Google Places 設定教學](GOOGLE_PLACES_SETUP.md)。）
 
 ## 4. 建立前端專用的 API key
 

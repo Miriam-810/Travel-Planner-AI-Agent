@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     # claude-opus-5-5 for evals and demos.
     model: str = "claude-haiku-5-5"
 
+    # Server-side key for Google Places API (New). Empty → POST /api/trips only
+    # accepts the sample trip's place ids.
+    google_places_api_key: str = ""
+
     # Comma-separated origins allowed to call the API from a browser. In local
     # development the Vite dev server proxies /api, so this is only needed once
     # the frontend is deployed on another domain.

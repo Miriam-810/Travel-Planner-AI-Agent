@@ -4,9 +4,9 @@ import httpx2
 import pytest
 from fastapi.testclient import TestClient
 
-from app.main import app, get_http_client, load_sample_trip
+from app.main import app, get_http_client, get_place_resolver, load_sample_trip
 from app.models import LodgingInput
-from app.trip_builder import lodging_for_night
+from app.trip_builder import lodging_for_night, sample_place_resolver
 from tests.conftest import FakeOpenMeteo
 
 
@@ -47,6 +47,8 @@ def client_with(request):
     fake: FakeOpenMeteo = request.param if hasattr(request, "param") else FakeOpenMeteo()
     http = fake.client()
     app.dependency_overrides[get_http_client] = lambda: http
+    # Sample place ids, whether or not a real Places key is in backend/.env.
+    app.dependency_overrides[get_place_resolver] = lambda: sample_place_resolver(load_sample_trip())
     yield TestClient(app), fake
     app.dependency_overrides.clear()
 
