@@ -1,13 +1,11 @@
-// Where things go on the trip island. Both the islets (one per day) and the
-// scenes on each islet follow the real map: north is away from the camera
-// (−z), east is to the right (+x). Things that would overlap are pushed apart
-// just enough, so the picture stays roughly true to geography.
+// Where things go on each islet. The scenes on an islet follow the real map:
+// north is away from the camera (−z), east is to the right (+x). Things that
+// would overlap are pushed apart just enough, so the picture stays roughly
+// true to geography.
 import type { Day } from '../types'
 import { seeded } from './random'
 
 export const ISLET_RADIUS = 2
-/** Islets closer than this would touch. */
-const ISLET_GAP = ISLET_RADIUS * 2 + 0.9
 /** Scenes stay inside this radius on their islet. */
 const SCENE_RING = ISLET_RADIUS * 0.6
 /** Scenes (≈0.8 wide once scaled) closer than this would overlap. */
@@ -20,11 +18,6 @@ function project(points: { lat: number; lng: number }[]): P[] {
   const lat0 = points.reduce((s, p) => s + p.lat, 0) / Math.max(points.length, 1)
   const k = Math.cos((lat0 * Math.PI) / 180)
   return points.map((p) => [p.lng * k * 111, -p.lat * 111])
-}
-
-function centre(points: P[]): P {
-  const n = Math.max(points.length, 1)
-  return [points.reduce((s, p) => s + p[0], 0) / n, points.reduce((s, p) => s + p[1], 0) / n]
 }
 
 /**
@@ -63,33 +56,6 @@ function relax(points: P[], gap: number, seed: string, limit?: number): P[] {
     }
   }
   return pts
-}
-
-/** Islet centres for the overview, placed where each day happens. */
-export function dayPositions(days: Day[], seed: string): [number, number, number][] {
-  // One projection for the whole trip, so every day shares the same map.
-  const flat = project(days.flatMap((d) => d.stops))
-  let offset = 0
-  const raw: P[] = []
-  for (const d of days) {
-    const own = flat.slice(offset, offset + d.stops.length)
-    offset += d.stops.length
-    // A day without stops (shouldn't happen) sits by the day before it.
-    raw.push(own.length ? centre(own) : (raw.at(-1) ?? [0, 0]))
-  }
-  const [cx, cz] = centre(raw)
-  const far = Math.max(...raw.map(([x, z]) => Math.hypot(x - cx, z - cz)), 1e-6)
-  // Spread the trip over an area that fits its islets comfortably. Distances
-  // from the middle are compressed: directions stay true, but a far-off
-  // day trip doesn't stretch the picture and shrink every islet.
-  const size = ISLET_GAP * Math.sqrt(days.length) * 0.42
-  const scaled = raw.map(([x, z]) => {
-    const d = Math.hypot(x - cx, z - cz)
-    if (d < 1e-9) return [0, 0] as P
-    const r = Math.pow(d / far, 0.4) * size
-    return [((x - cx) / d) * r, ((z - cz) / d) * r] as P
-  })
-  return relax(scaled, ISLET_GAP, seed).map(([x, z]) => [x, 0, z])
 }
 
 /** Scene spots on one islet: the day's stops in their real relative positions. */
