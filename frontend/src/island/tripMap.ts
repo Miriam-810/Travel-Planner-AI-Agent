@@ -13,22 +13,54 @@ export type P = [number, number]
 
 /** Long side of the trip's own extent, in scene units. */
 const TRIP_SIZE = 30
-const KM_PER_DEG = 111.32
+export const KM_PER_DEG = 111.32
 
 export interface DayLayout {
   /** Scene position of each stop, in visiting order (nudged apart if they would overlap). */
   stops: P[]
   /** Scene-unit size of one stop's little scene on this day. */
   piece: number
-  /** Middle and half-size of the day's stops, for the camera. */
+  /**
+   * Middle and half-size of the day's main group of stops, for the camera and
+   * the flag. A Miyajima day that starts at Hiroshima Station and ends with
+   * dinner back in town is "about" Miyajima, not the 20 km in between.
+   */
   centre: P
   half: P
+}
+
+/** Stops closer than this (km) to another stop in the group belong to the same group. */
+const GROUP_KM = 3
+
+/** Indices of the largest group of stops, linking any two within `gap` of each other. */
+function mainGroup(points: P[], gap: number): number[] {
+  const group = points.map((_, i) => i)
+  const find = (i: number): number => (group[i] === i ? i : (group[i] = find(group[i])))
+  for (let i = 0; i < points.length; i++)
+    for (let j = i + 1; j < points.length; j++)
+      if (Math.hypot(points[i][0] - points[j][0], points[i][1] - points[j][1]) <= gap) group[find(i)] = find(j)
+  const members = new Map<number, number[]>()
+  points.forEach((_, i) => members.set(find(i), [...(members.get(find(i)) ?? []), i]))
+  // Largest group; on a tie, the one visited first.
+  return [...members.values()].sort((a, b) => b.length - a.length || a[0] - b[0])[0] ?? []
+}
+
+/** How the map turns lng/lat into scene units, so other layers (terrain) line up. */
+export interface Frame {
+  lng0: number
+  lat0: number
+  /** cos(lat0): east–west km per degree shrink with latitude. */
+  k: number
+  /** Scene units per km. */
+  unit: number
+  box: GeoBox
 }
 
 export interface TripMap {
   /** Map rectangle in scene units, centred on 0. */
   width: number
   depth: number
+  frame: Frame
   /** Coastline rings clipped to the map, in scene units (x, z). */
   land: P[][]
   days: DayLayout[]
@@ -37,7 +69,7 @@ export interface TripMap {
   half: P
 }
 
-interface GeoBox {
+export interface GeoBox {
   west: number
   east: number
   south: number
@@ -156,17 +188,20 @@ export function buildTripMap(days: Day[], seed: string, aspect = 1.6): TripMap {
 
   const dayLayouts = days.map((d, i): DayLayout => {
     const real = d.stops.map((s) => toScene(s.lng, s.lat))
-    const b = bounds(real.length ? real : [[0, 0]])
-    // Scene size: roughly the day's spread shared among its stops, within sensible limits.
+    const main = mainGroup(real, GROUP_KM * unit)
+    const focus = main.map((k) => real[k])
+    const b = bounds(focus.length ? focus : [[0, 0]])
+    // Scene size: roughly the main group's spread shared among its stops, within sensible limits.
     const spread = Math.max(b.half[0], b.half[1]) * 2
-    const piece = Math.min(1.1, Math.max(0.18, spread / (Math.sqrt(Math.max(real.length, 1)) * 1.6)))
+    const piece = Math.min(1.1, Math.max(0.18, spread / (Math.sqrt(Math.max(focus.length, 1)) * 1.6)))
     const stops = relax(real, piece * 1.35, `${seed}-${i}`)
-    return { stops, piece, ...bounds(stops.length ? stops : [[0, 0]]) }
+    return { stops, piece, ...bounds(main.length ? main.map((k) => stops[k]) : [[0, 0]]) }
   })
 
   return {
     width: 2 * halfX * unit,
     depth: 2 * halfZ * unit,
+    frame: { lng0, lat0, k, unit, box },
     land,
     days: dayLayouts,
     ...bounds(dayLayouts.flatMap((d) => d.stops)),
@@ -184,4 +219,9 @@ export function onLand(x: number, z: number, land: P[][]): boolean {
     }
   }
   return inside
+}
+
+/** Scene position (x, z) of a place. */
+export function toScene(frame: Frame, lng: number, lat: number): P {
+  return [(lng - frame.lng0) * frame.k * KM_PER_DEG * frame.unit, -(lat - frame.lat0) * KM_PER_DEG * frame.unit]
 }

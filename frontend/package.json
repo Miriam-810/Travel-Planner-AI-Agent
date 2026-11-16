@@ -11,8 +11,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mapbox/vector-tile": "^2.0.4",
     "@react-three/fiber": "^9.8.2",
     "@vis.gl/react-google-maps": "^1.10.2",
+    "pbf": "^4.0.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "three": "^0.187.0",
