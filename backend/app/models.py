@@ -91,6 +91,13 @@ class TripRequest(BaseModel):
             raise ValueError(f"trip must be {MIN_TRIP_DAYS}–{MAX_TRIP_DAYS} days, got {days}")
         if days == 1 and self.arrival_time and self.departure_time and self.arrival_time >= self.departure_time:
             raise ValueError("on a one-day trip the arrival must be before the departure")
+        for lodging in self.lodgings:
+            if lodging.check_in < self.start_date or lodging.check_out > self.end_date:
+                raise ValueError(f"lodging {lodging.name!r} must be within the trip ({self.start_date} to {self.end_date})")
+        nights = sorted(self.lodgings, key=lambda l: l.check_in)
+        for a, b in zip(nights, nights[1:]):
+            if b.check_in < a.check_out:
+                raise ValueError(f"lodgings {a.name!r} and {b.name!r} overlap")
         return self
 
 

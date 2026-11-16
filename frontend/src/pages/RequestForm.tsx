@@ -12,7 +12,9 @@ import {
   TextButton,
   inputCls,
 } from '../components/Form'
+import { DateField, RangeCalendar } from '../components/Calendar'
 import { Icon } from '../components/Icon'
+import { addDays, longDate } from '../lib/dates'
 import { IslandMark } from '../components/IslandMark'
 import type { FormDraft, Pace } from '../lib/formDraft'
 import { monthDay } from '../lib/format'
@@ -85,6 +87,20 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
 
   const set = <K extends keyof FormDraft>(key: K, value: FormDraft[K]) => onDraftChange({ ...draft, [key]: value })
   const days = tripDays(draft.start_date, draft.end_date)
+  // Nights of the trip: check in from the first day to the day before the last, check out by the last day.
+  const lastCheckIn = draft.end_date ? addDays(draft.end_date, -1) : ''
+  const lodgingProblem = (): string | null => {
+    if (draft.lodgings.length === 0) return null
+    if (days === 1) return '一日遊沒有過夜，不用填住宿（可以刪掉這幾筆）'
+    if (draft.lodgings.some((l) => !l.name.trim() || l.name.length > 100 || !l.check_in || !l.check_out))
+      return '每筆住宿都要有名稱、入住和退房日'
+    if (draft.lodgings.some((l) => l.check_out <= l.check_in)) return '退房日要晚於入住日'
+    if (draft.lodgings.some((l) => l.check_in < draft.start_date || l.check_out > draft.end_date))
+      return `住宿要在旅行期間內：${draft.start_date} 入住起、${draft.end_date} 退房前`
+    const sorted = [...draft.lodgings].sort((a, b) => a.check_in.localeCompare(b.check_in))
+    if (sorted.some((l, i) => i > 0 && l.check_in < sorted[i - 1].check_out)) return '幾間住宿的日期重疊了，請確認入住和退房日'
+    return null
+  }
   const maxInterests = MAX_PREFERENCES - (draft.pace ? 1 : 0)
 
   const toggleInterest = (p: string) =>
@@ -146,28 +162,16 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
       },
       body: (
         <div className="flex flex-col gap-3">
-          <Field label="出發日" htmlFor="start">
-            <IconInput
-              icon="calendar"
-              id="start"
-              type="date"
-              value={draft.start_date}
-              onChange={(e) => set('start_date', e.target.value)}
-            />
-          </Field>
-          <Field label="回程日" htmlFor="end">
-            <IconInput
-              icon="calendar"
-              id="end"
-              type="date"
-              value={draft.end_date}
-              min={draft.start_date || undefined}
-              onChange={(e) => set('end_date', e.target.value)}
-            />
-          </Field>
-          {days !== null && days > 0 && (
-            <p className="m-0 rounded-2xl bg-sage-soft px-4 py-2 text-[14px] text-sage-deep">
-              {monthDay(draft.start_date)} 出發，共 {days} 天
+          <RangeCalendar
+            start={draft.start_date}
+            end={draft.end_date}
+            maxDays={MAX_DAYS}
+            onChange={(start, end) => onDraftChange({ ...draft, start_date: start, end_date: end })}
+          />
+          {draft.start_date && (
+            <p className="m-0 rounded-2xl bg-sage-soft px-4 py-2 text-[14px] text-sage-deep tabular-nums">
+              {longDate(draft.start_date).slice(5)} 出發
+              {draft.end_date && days !== null && days > 0 ? `・${longDate(draft.end_date).slice(5)} 回程・共 ${days} 天` : ''}
             </p>
           )}
         </div>
@@ -293,13 +297,16 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
                     key={p}
                     type="button"
                     aria-pressed={on}
+                    aria-label={on ? `移除「${p}」` : `選擇「${p}」`}
                     disabled={!on && draft.preferences.length >= maxInterests}
                     onClick={() => toggleInterest(p)}
-                    className={`rounded-full border-0 px-4 py-1.5 text-[14px] transition-colors disabled:opacity-40 ${
-                      on ? 'bg-sage text-white' : 'bg-field text-ink hover:bg-mist-deep'
+                    className={`inline-flex items-center gap-1 rounded-full border-0 py-1.5 text-[14px] transition-colors disabled:opacity-40 ${
+                      on ? 'bg-sage pr-2.5 pl-4 text-white hover:bg-sage-deep' : 'bg-field px-4 text-ink hover:bg-mist-deep'
                     }`}
                   >
                     {p}
+                    {/* Selected chips show an × so it's clear a tap removes them. */}
+                    {on && <Icon name="close" size={13} />}
                   </button>
                 )
               })}
@@ -313,7 +320,8 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
                 placeholder="其他想法，例如：不吃生食"
                 onChange={(e) => setCustomPref(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  // With Zhuyin and other IMEs, Enter first confirms the characters: that one isn't "add".
+                  if (e.key === 'Enter' && !e.nativeEvent.isComposing && e.keyCode !== 229) {
                     e.preventDefault()
                     addCustomPref()
                   }
@@ -329,12 +337,7 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
       title: '已經訂好住宿了嗎？',
       subtitle: '填了之後，每天的行程會在住宿附近結束',
       optional: true,
-      check: () =>
-        draft.lodgings.some(
-          (l) => !l.name.trim() || l.name.length > 100 || !l.check_in || !l.check_out || l.check_out <= l.check_in,
-        )
-          ? '每筆住宿都要有名稱，退房日要晚於入住日'
-          : null,
+      check: lodgingProblem,
       body: (
         <div className="flex flex-col gap-3">
           {draft.lodgings.map((l, i) => (
@@ -360,37 +363,50 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
                 </button>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                <label className="flex min-w-0 flex-col gap-1 text-[12px] text-ink-soft">
+                <div className="flex min-w-0 flex-col gap-1 text-[12px] text-ink-soft">
                   入住
-                  <input
-                    type="date"
-                    className={inputCls}
+                  <DateField
+                    label={`住宿 ${i + 1} 入住日`}
                     value={l.check_in}
-                    onChange={(e) => setLodging(i, { check_in: e.target.value })}
+                    min={draft.start_date}
+                    max={lastCheckIn}
+                    onChange={(iso) =>
+                      // Moving check-in past check-out pushes check-out to the next day.
+                      setLodging(i, { check_in: iso, ...(l.check_out <= iso ? { check_out: addDays(iso, 1) } : {}) })
+                    }
                   />
-                </label>
-                <label className="flex min-w-0 flex-col gap-1 text-[12px] text-ink-soft">
+                </div>
+                <div className="flex min-w-0 flex-col gap-1 text-[12px] text-ink-soft">
                   退房
-                  <input
-                    type="date"
-                    className={inputCls}
+                  <DateField
+                    label={`住宿 ${i + 1} 退房日`}
                     value={l.check_out}
-                    onChange={(e) => setLodging(i, { check_out: e.target.value })}
+                    min={l.check_in ? addDays(l.check_in, 1) : draft.start_date}
+                    max={draft.end_date}
+                    alignRight
+                    onChange={(iso) => setLodging(i, { check_out: iso })}
                   />
-                </label>
+                </div>
               </div>
             </div>
           ))}
-          {draft.lodgings.length < MAX_LODGINGS && (
-            <div>
-              <GhostButton
-                onClick={() =>
-                  set('lodgings', [...draft.lodgings, { name: '', check_in: draft.start_date, check_out: draft.end_date }])
-                }
-              >
-                ＋ 新增住宿
-              </GhostButton>
-            </div>
+          {days === 1 ? (
+            <p className="m-0 text-[14px] text-ink-soft">一日遊沒有過夜，這題可以直接跳過。</p>
+          ) : (
+            draft.lodgings.length < MAX_LODGINGS && (
+              <div>
+                <GhostButton
+                  onClick={() => {
+                    // A new hotel starts where the last one ends, so several hotels fill the trip in order.
+                    const after = draft.lodgings.map((l) => l.check_out).sort().at(-1)
+                    const checkIn = after && after < draft.end_date ? after : draft.start_date
+                    set('lodgings', [...draft.lodgings, { name: '', check_in: checkIn, check_out: draft.end_date }])
+                  }}
+                >
+                  ＋ 新增住宿
+                </GhostButton>
+              </div>
+            )
           )}
         </div>
       ),
@@ -429,8 +445,18 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
     const problem = current.check()
     setStepError(problem)
     if (problem) return
-    if (step < last) setStep(step + 1)
-    else onSubmit(toRequest(draft))
+    if (step < last) {
+      setStep(step + 1)
+      return
+    }
+    // Earlier answers may no longer fit (dates changed after the hotels were filled in): recheck them all.
+    const broken = steps.findIndex((st) => st.check() !== null)
+    if (broken !== -1) {
+      setStep(broken)
+      setStepError(steps[broken].check())
+      return
+    }
+    onSubmit(toRequest(draft))
   }
 
   const back = () => {

@@ -7,13 +7,15 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { Trip } from '../types'
+import { citiesOnTrip } from './cities'
 import { badgeTexture } from './labels'
+import { Landmark } from './landmarks'
 import { palette3d, type Palette3D } from './palette3d'
 import { seeded } from './random'
 import { PIECE_HEIGHT, sceneOf } from './sceneKinds'
 import { ScenePiece } from './scenes'
 import { loadDetail, loadTerrain, type Detail, type Terrain } from './terrain'
-import { buildTripMap, onLand, type P, type TripMap } from './tripMap'
+import { buildTripMap, onLand, toScene, type P, type TripMap } from './tripMap'
 
 const FOV = 35
 const OVERVIEW_TILT = THREE.MathUtils.degToRad(55)
@@ -185,6 +187,7 @@ function Scene({ trip, openDay, selectedStopId, onPickDay, onPickStop, pal }: Pr
         )
       })}
 
+      {openDay === null && <Landmarks trip={trip} map={map} />}
       {openDay === null && <DayFlags map={map} openDay={openDay} pal={pal} onPickDay={onPickDay} reducedMotion={reducedMotion} />}
     </GroundCtx.Provider>
   )
@@ -297,6 +300,27 @@ function DayDetail({ map, day, at, pal }: { map: TripMap; day: number; at: P; pa
     <mesh geometry={geometry} raycast={() => null}>
       <meshStandardMaterial map={detail.texture} roughness={0.95} polygonOffset polygonOffsetFactor={-2} />
     </mesh>
+  )
+}
+
+/** Landmarks of the well-known places the trip visits, standing where they really are. */
+function Landmarks({ trip, map }: { trip: Trip; map: TripMap }) {
+  const ground = useGround()
+  const placed = useMemo(
+    () =>
+      citiesOnTrip(trip)
+        .map((c) => ({ city: c, at: toScene(map.frame, c.lng, c.lat) }))
+        .filter(({ at }) => Math.abs(at[0]) < map.width / 2 - 1 && Math.abs(at[1]) < map.depth / 2 - 1),
+    [trip, map],
+  )
+  return (
+    <group>
+      {placed.map(({ city, at: [x, z] }) => (
+        <group key={city.name} position={[x, ground(x, z), z]} scale={4.2 * (city.size ?? 1)} raycast={() => null}>
+          <Landmark kind={city.landmark} />
+        </group>
+      ))}
+    </group>
   )
 }
 

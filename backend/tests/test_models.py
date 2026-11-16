@@ -47,6 +47,32 @@ class TestTripRequest:
         ok = make_request(start_date=day, end_date=day, arrival_time=time(9, 0), departure_time=time(20, 0))
         assert ok.start_date == ok.end_date
 
+    @pytest.mark.parametrize(
+        ("check_in", "check_out"),
+        [(date(2026, 12, 24), date(2026, 12, 26)), (date(2026, 12, 31), date(2027, 1, 2)), (date(2027, 2, 1), date(2027, 2, 3))],
+    )
+    def test_lodging_must_be_within_the_trip(self, check_in, check_out):
+        with pytest.raises(ValidationError, match="within the trip"):
+            make_request(lodgings=[{"name": "飯店", "check_in": check_in, "check_out": check_out}])
+
+    def test_lodging_may_check_out_on_the_last_day(self):
+        req = make_request(lodgings=[{"name": "飯店", "check_in": date(2026, 12, 25), "check_out": date(2027, 1, 1)}])
+        assert req.lodgings[0].check_out == req.end_date
+
+    def test_lodgings_must_not_overlap(self):
+        with pytest.raises(ValidationError, match="overlap"):
+            make_request(lodgings=[
+                {"name": "A", "check_in": date(2026, 12, 25), "check_out": date(2026, 12, 28)},
+                {"name": "B", "check_in": date(2026, 12, 27), "check_out": date(2026, 12, 30)},
+            ])
+
+    def test_back_to_back_lodgings_are_fine(self):
+        req = make_request(lodgings=[
+            {"name": "A", "check_in": date(2026, 12, 25), "check_out": date(2026, 12, 28)},
+            {"name": "B", "check_in": date(2026, 12, 28), "check_out": date(2026, 12, 31)},
+        ])
+        assert len(req.lodgings) == 2
+
     def test_rejects_end_before_start(self):
         with pytest.raises(ValidationError, match="end_date"):
             make_request(start_date=date(2026, 12, 25), end_date=date(2026, 12, 20))

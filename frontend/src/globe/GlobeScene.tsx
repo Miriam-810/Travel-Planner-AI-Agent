@@ -9,6 +9,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { tripCentre, tripStatus, type SavedTrip, type TripStatus } from '../lib/library'
 import { palette3d } from '../island/palette3d'
+import { mainCity, type LandmarkKind } from '../island/cities'
+import { Landmark } from '../island/landmarks'
 import { seeded } from '../island/random'
 import { isLand } from './land'
 
@@ -353,6 +355,8 @@ interface Placed {
   status: TripStatus
   theme: string
   phase: number
+  /** The trip's main city's landmark, standing on its island. */
+  landmark: LandmarkKind | null
 }
 
 /** Trips close together (Tokyo, then Kyoto) are nudged apart so their islands don't overlap. */
@@ -361,7 +365,14 @@ function place(trips: SavedTrip[]): Placed[] {
   trips.forEach((e, i) => {
     const c = tripCentre(e.trip)
     if (!c) return
-    placed.push({ id: e.trip.id, dir: toVector(c.lat, c.lng), status: tripStatus(e.trip), theme: e.trip.theme, phase: i * 1.7 })
+    placed.push({
+      id: e.trip.id,
+      dir: toVector(c.lat, c.lng),
+      status: tripStatus(e.trip),
+      theme: e.trip.theme,
+      phase: i * 1.7,
+      landmark: mainCity(e.trip)?.landmark ?? null,
+    })
   })
   const gap = 0.12
   for (let iter = 0; iter < 60; iter++) {
@@ -472,16 +483,23 @@ function MiniIsland({
         <coneGeometry args={[0.009, 0.024, 5]} />
         {mat(pal.leaves[pal.leaves.length - 1])}
       </mesh>
-      <group position={[-0.002, 0.028, 0.016]}>
-        <mesh position={[0, 0.007, 0]}>
-          <boxGeometry args={[0.016, 0.014, 0.014]} />
-          {mat(pal.wall)}
-        </mesh>
-        <mesh position={[0, 0.019, 0]} rotation={[0, Math.PI / 4, 0]}>
-          <coneGeometry args={[0.014, 0.011, 4]} />
-          {mat(pal.roof, built ? { emissive: pal.roof, emissiveIntensity: 0.25 } : undefined)}
-        </mesh>
-      </group>
+      {placed.landmark ? (
+        // The trip's main city's landmark (a pagoda for Kyoto, a castle for Osaka…).
+        <group position={[0.002, 0.028, 0.004]} scale={0.042} raycast={() => null}>
+          <Landmark kind={placed.landmark} opacity={opacity} />
+        </group>
+      ) : (
+        <group position={[-0.002, 0.028, 0.016]}>
+          <mesh position={[0, 0.007, 0]}>
+            <boxGeometry args={[0.016, 0.014, 0.014]} />
+            {mat(pal.wall)}
+          </mesh>
+          <mesh position={[0, 0.019, 0]} rotation={[0, Math.PI / 4, 0]}>
+            <coneGeometry args={[0.014, 0.011, 4]} />
+            {mat(pal.roof, built ? { emissive: pal.roof, emissiveIntensity: 0.25 } : undefined)}
+          </mesh>
+        </group>
+      )}
 
       {built ? (
         <sprite position={[0, 0.03, 0]} scale={[0.28, 0.28, 0.28]} raycast={() => null}>

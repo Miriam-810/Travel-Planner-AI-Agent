@@ -15,6 +15,7 @@ const PATHS = {
   up: 'm6 14 6-6 6 6',
   down: 'm6 10 6 6 6-6',
   back: 'M15 6l-6 6 6 6',
+  forward: 'M9 6l6 6-6 6',
   map: 'm9 4-5 2v14l5-2 6 2 5-2V4l-5 2-6-2Zm0 0v14m6-12v14',
 } as const
 
