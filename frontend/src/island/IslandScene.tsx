@@ -7,6 +7,7 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
 import type { Trip } from '../types'
+import { monthDay, weekdayZh } from '../lib/format'
 import { citiesOnTrip } from './cities'
 import { badgeTexture } from './labels'
 import { Landmark } from './landmarks'
@@ -15,6 +16,7 @@ import { seeded } from './random'
 import { PIECE_HEIGHT, sceneOf } from './sceneKinds'
 import { ScenePiece } from './scenes'
 import { loadDetail, loadTerrain, type Detail, type Terrain } from './terrain'
+import { daylight, hourOf, skyAt, type Sky } from './sky'
 import { buildTripMap, onLand, toScene, type P, type TripMap } from './tripMap'
 
 const FOV = 35
@@ -67,12 +69,35 @@ function pointer(on: boolean) {
   document.body.style.cursor = on ? 'pointer' : ''
 }
 
+const PHASE_TEXT = { day: '白天', dawn: '清晨', dusk: '黃昏', night: '夜晚' } as const
+
+/**
+ * The moment shown: the selected stop's arrival (or the day's first stop), on
+ * that day, at that place, under that day's weather. The overview is plain daylight.
+ */
+function useMoment(trip: Trip, openDay: number | null, selectedStopId: string | null, pal: Palette3D) {
+  return useMemo(() => {
+    const day = openDay !== null ? trip.days[openDay] : null
+    if (!day || day.stops.length === 0) return { sky: daylight(pal), label: null }
+    const stop = day.stops.find((s) => s.id === selectedStopId) ?? day.stops[0]
+    const lat = day.stops.reduce((n, s) => n + s.lat, 0) / day.stops.length
+    const lng = day.stops.reduce((n, s) => n + s.lng, 0) / day.stops.length
+    const sky = skyAt(pal, day.date, lat, lng, hourOf(stop.arrive), day.weather?.summary)
+    const w = day.weather
+    const label = `${monthDay(day.date)}（${weekdayZh(day.date)}）${stop.arrive.slice(0, 5)}・${PHASE_TEXT[sky.phase]}${
+      w ? `・${w.summary} ${Math.round(w.low_c)}°/${Math.round(w.high_c)}°` : ''
+    }`
+    return { sky, label }
+  }, [trip.days, openDay, selectedStopId, pal])
+}
+
 export default function IslandScene(props: Props) {
   const pal = palette3d(props.trip.theme)
+  const { sky, label } = useMoment(props.trip, props.openDay, props.selectedStopId, pal)
   return (
     <div
-      className="absolute inset-0"
-      style={{ background: `linear-gradient(180deg, ${pal.skyTop} 0%, ${pal.skyBottom} 100%)` }}
+      className="absolute inset-0 transition-[background] duration-700"
+      style={{ background: `linear-gradient(180deg, ${sky.top} 0%, ${sky.bottom} 100%)` }}
     >
       <Canvas
         dpr={[1, 2]}
@@ -84,8 +109,17 @@ export default function IslandScene(props: Props) {
           </p>
         }
       >
-        <Scene {...props} pal={pal} />
+        <Scene {...props} pal={pal} sky={sky} />
       </Canvas>
+      {label && (
+        <p
+          className={`pointer-events-none absolute right-3 bottom-6 m-0 rounded-full px-3 py-1 text-[12.5px] tabular-nums backdrop-blur ${
+            sky.night > 0.5 ? 'bg-ink/55 text-white' : 'bg-cream/85 text-ink'
+          }`}
+        >
+          {label}
+        </p>
+      )}
       <p className="pointer-events-none absolute right-3 bottom-1.5 m-0 text-[10px] text-ink-soft/80">
         地形：国土地理院｜© OpenStreetMap・OpenFreeMap
       </p>
@@ -93,7 +127,7 @@ export default function IslandScene(props: Props) {
   )
 }
 
-function Scene({ trip, openDay, selectedStopId, onPickDay, onPickStop, pal }: Props & { pal: Palette3D }) {
+function Scene({ trip, openDay, selectedStopId, onPickDay, onPickStop, pal, sky }: Props & { pal: Palette3D; sky: Sky }) {
   const { size } = useThree()
   const aspect = size.width / Math.max(size.height, 1)
   // Rounded so small resizes don't rebuild the map.
@@ -115,9 +149,7 @@ function Scene({ trip, openDay, selectedStopId, onPickDay, onPickStop, pal }: Pr
 
   return (
     <GroundCtx.Provider value={ground}>
-      <hemisphereLight args={[pal.skyTop, pal.rockDark, 1.5]} />
-      <directionalLight position={[12, 30, 18]} intensity={1.6} />
-      <ambientLight intensity={0.3} />
+      <Lights sky={sky} reducedMotion={reducedMotion} />
 
       <CameraRig
         map={map}
@@ -187,6 +219,10 @@ function Scene({ trip, openDay, selectedStopId, onPickDay, onPickStop, pal }: Pr
         )
       })}
 
+      {openDay !== null && sky.night > 0.05 && <Lamps layout={map.days[openDay]} night={sky.night} />}
+      {openDay !== null && sky.precip !== 'none' && !reducedMotion && (
+        <Weather key={`${openDay}-${sky.precip}`} layout={map.days[openDay]} precip={sky.precip} />
+      )}
       {openDay === null && <Landmarks trip={trip} map={map} />}
       {openDay === null && <DayFlags map={map} openDay={openDay} pal={pal} onPickDay={onPickDay} reducedMotion={reducedMotion} />}
     </GroundCtx.Provider>
@@ -300,6 +336,157 @@ function DayDetail({ map, day, at, pal }: { map: TripMap; day: number; at: P; pa
     <mesh geometry={geometry} raycast={() => null}>
       <meshStandardMaterial map={detail.texture} roughness={0.95} polygonOffset polygonOffsetFactor={-2} />
     </mesh>
+  )
+}
+
+/** Sun (or moon), sky light and fill light, easing towards the moment's sky. */
+function Lights({ sky, reducedMotion }: { sky: Sky; reducedMotion: boolean }) {
+  const sun = useRef<THREE.DirectionalLight>(null)
+  const hemi = useRef<THREE.HemisphereLight>(null)
+  const fill = useRef<THREE.AmbientLight>(null)
+  const target = useMemo(
+    () => ({
+      sunColour: new THREE.Color(sky.sunColour),
+      sunPos: new THREE.Vector3(...sky.sunDir).multiplyScalar(40),
+      hemiSky: new THREE.Color(sky.hemiSky),
+      hemiGround: new THREE.Color(sky.hemiGround),
+    }),
+    [sky],
+  )
+  useFrame((_, delta) => {
+    const k = reducedMotion ? 1 : 1 - Math.exp(-delta * 2.5)
+    if (sun.current) {
+      sun.current.color.lerp(target.sunColour, k)
+      sun.current.position.lerp(target.sunPos, k)
+      sun.current.intensity += (sky.sunIntensity - sun.current.intensity) * k
+    }
+    if (hemi.current) {
+      hemi.current.color.lerp(target.hemiSky, k)
+      hemi.current.groundColor.lerp(target.hemiGround, k)
+      hemi.current.intensity += (sky.hemiIntensity - hemi.current.intensity) * k
+    }
+    if (fill.current) fill.current.intensity += (sky.ambient - fill.current.intensity) * k
+  })
+  return (
+    <>
+      <hemisphereLight ref={hemi} args={[sky.hemiSky, sky.hemiGround, sky.hemiIntensity]} />
+      <directionalLight ref={sun} position={target.sunPos} intensity={sky.sunIntensity} color={sky.sunColour} />
+      <ambientLight ref={fill} intensity={sky.ambient} />
+    </>
+  )
+}
+
+let lampTexture: THREE.Texture | null = null
+function lampGlow(): THREE.Texture {
+  if (lampTexture) return lampTexture
+  const size = 64
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
+  g.addColorStop(0, 'rgba(255,224,150,1)')
+  g.addColorStop(0.35, 'rgba(255,190,110,0.45)')
+  g.addColorStop(1, 'rgba(255,170,90,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, size, size)
+  lampTexture = new THREE.CanvasTexture(canvas)
+  return lampTexture
+}
+
+/** After dark, every stop glows with warm light, like lit windows and lanterns. */
+function Lamps({ layout, night }: { layout: TripMap['days'][number]; night: number }) {
+  const ground = useGround()
+  return (
+    <group>
+      {layout.stops.map(([x, z], i) => (
+        <sprite key={i} position={[x, ground(x, z) + layout.piece * 0.35, z]} scale={layout.piece * 2.4} raycast={() => null}>
+          <spriteMaterial map={lampGlow()} blending={THREE.AdditiveBlending} transparent opacity={night * 0.85} depthWrite={false} />
+        </sprite>
+      ))}
+    </group>
+  )
+}
+
+/** Rain streaks, snowflakes, and for storms the odd flash of lightning, over the open day. */
+function Weather({ layout, precip }: { layout: TripMap['days'][number]; precip: 'rain' | 'snow' | 'storm' }) {
+  const ground = useGround()
+  const flakes = useRef<THREE.InstancedMesh>(null)
+  const streaks = useRef<THREE.LineSegments>(null)
+  const flash = useRef<THREE.AmbientLight>(null)
+  const snow = precip === 'snow'
+  const count = snow ? 500 : 1400
+  const p = layout.piece
+  const reach = Math.max(layout.half[0], layout.half[1]) + p * 4
+  const floor = ground(layout.centre[0], layout.centre[1])
+  const top = floor + p * (snow ? 5 : 3.5)
+  const length = p * 0.22
+
+  const drops = useMemo(() => {
+    const rand = seeded(`weather-${precip}`)
+    return Array.from({ length: count }, () => ({
+      x: layout.centre[0] + (rand() - 0.5) * reach * 2,
+      y0: floor + rand() * (top - floor),
+      z: layout.centre[1] + (rand() - 0.5) * reach * 2,
+      speed: snow ? p * (0.6 + rand() * 0.5) : p * (7 + rand() * 3),
+      phase: rand() * Math.PI * 2,
+    }))
+  }, [count, layout, reach, floor, top, p, snow, precip])
+
+  // Rain as hairline segments: always one pixel wide, however close to the camera.
+  const lineGeo = useMemo(() => {
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(count * 6), 3))
+    return geo
+  }, [count])
+  useEffect(() => () => lineGeo.dispose(), [lineGeo])
+
+  const nextFlash = useRef(3)
+  // Current heights, kept outside React: they change every frame.
+  const heights = useRef<Float32Array | null>(null)
+  const m = useMemo(() => new THREE.Matrix4(), [])
+  useFrame(({ clock }, delta) => {
+    if (heights.current?.length !== drops.length) heights.current = Float32Array.from(drops, (d) => d.y0)
+    const ys = heights.current
+    const t = clock.elapsedTime
+    const pos = lineGeo.getAttribute('position') as THREE.BufferAttribute
+    drops.forEach((d, i) => {
+      ys[i] -= d.speed * delta
+      if (ys[i] < floor) ys[i] = top
+      if (snow) {
+        const sway = Math.sin(t * 1.3 + d.phase) * p * 0.25
+        m.makeTranslation(d.x + sway, ys[i], d.z)
+        flakes.current?.setMatrixAt(i, m)
+      } else {
+        // A slight slant, as if blown by the wind.
+        pos.setXYZ(i * 2, d.x, ys[i], d.z)
+        pos.setXYZ(i * 2 + 1, d.x - length * 0.15, ys[i] + length, d.z - length * 0.05)
+      }
+    })
+    if (snow && flakes.current) flakes.current.instanceMatrix.needsUpdate = true
+    if (!snow) pos.needsUpdate = true
+    if (precip === 'storm' && flash.current) {
+      if (t > nextFlash.current) {
+        flash.current.intensity = 2.5
+        nextFlash.current = t + 4 + Math.random() * 6
+      }
+      flash.current.intensity *= Math.exp(-delta * 9)
+    }
+  })
+
+  return (
+    <group>
+      {snow ? (
+        <instancedMesh ref={flakes} args={[undefined, undefined, count]} raycast={() => null} frustumCulled={false}>
+          <icosahedronGeometry args={[p * 0.016, 0]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.95} depthWrite={false} />
+        </instancedMesh>
+      ) : (
+        <lineSegments ref={streaks} geometry={lineGeo} raycast={() => null} frustumCulled={false}>
+          <lineBasicMaterial color="#e3edf7" transparent opacity={0.6} depthWrite={false} />
+        </lineSegments>
+      )}
+      {precip === 'storm' && <ambientLight ref={flash} intensity={0} color="#e8eeff" />}
+    </group>
   )
 }
 
