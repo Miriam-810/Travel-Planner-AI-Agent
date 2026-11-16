@@ -29,7 +29,7 @@ export function MapPanel({ trip, openDay, selectedStopId, onPickDay, onPickStop,
   }
 
   return (
-    <div data-map-frame className={`relative ${openDay === null ? 'h-[clamp(240px,40vh,420px)]' : 'h-[clamp(300px,58vh,600px)]'} overflow-hidden transition-[height] duration-300 rounded-[28px] border-[5px] border-cream bg-sage-soft shadow-[var(--shadow-card)]`}>
+    <div data-map-frame className={`relative ${openDay === null ? 'h-[clamp(300px,54vh,560px)]' : 'h-[clamp(320px,60vh,620px)]'} overflow-hidden transition-[height] duration-300 rounded-[28px] border-[5px] border-cream bg-sage-soft shadow-[var(--shadow-card)]`}>
       {view === 'island' ? (
         <Suspense fallback={<p className="absolute inset-x-0 top-1/2 text-center text-[13px] text-ink-soft">小島載入中…</p>}>
           <IslandScene

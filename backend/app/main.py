@@ -1,5 +1,5 @@
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Callable, Coroutine
 from contextlib import asynccontextmanager
 from datetime import date, timedelta
 from functools import lru_cache
@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from app.agent.loop import AgentError, AgentRefused, AgentResult, run_agent
 from app.config import get_settings
 from app.limits import DailyLimitReached, InvalidInviteCode, UsageLimiter
-from app.models import Trip, TripOutline, TripRequest
+from app.models import ChatTurn, Revision, Trip, TripOutline, TripRequest
 from app.providers.base import PlaceNotFound, PlacesError, ProviderRegistry, Providers, UnsupportedCountry
 from app.providers.registry import build_registry
 from app.tools.weather import get_weather, today_in_japan
@@ -82,6 +82,7 @@ def get_limiter() -> UsageLimiter:
         {
             "outline": (settings.daily_limit_per_code, settings.daily_limit_site),
             "trips": (settings.daily_trips_per_code, settings.daily_trips_site),
+            "revise": (settings.daily_revise_per_code, settings.daily_revise_site),
         },
     )
 
@@ -111,7 +112,7 @@ def providers_for(registry: ProviderRegistry, country: str) -> Providers:
         ) from exc
 
 
-AgentRunner = Callable[[TripRequest], Awaitable[AgentResult]]
+AgentRunner = Callable[[TripRequest, Revision | None], Coroutine[None, None, AgentResult]]
 
 
 def get_agent_runner(
@@ -122,7 +123,7 @@ def get_agent_runner(
         raise HTTPException(status_code=503, detail="伺服器尚未設定 Anthropic 或 Google Places key")
     http: httpx2.AsyncClient = request.app.state.http
 
-    async def run(trip_request: TripRequest) -> AgentResult:
+    async def run(trip_request: TripRequest, revision: Revision | None = None) -> AgentResult:
         providers = providers_for(registry, trip_request.country)
         tz = providers.country.timezone
 
@@ -137,6 +138,7 @@ def get_agent_runner(
             providers=providers,
             weather=weather,
             today=providers.country.today(),
+            revision=revision,
         )
 
     return run
@@ -164,13 +166,23 @@ class OutlineResponse(BaseModel):
     warnings: list[str]
     remaining_today: int
     stats: OutlineStats
+    # Claude's note to the traveller: the plan's idea, or what a revision changed.
+    reply: str = ""
+
+
+class ReviseBody(BaseModel):
+    request: TripRequest
+    outline: TripOutline
+    message: str
+    history: list[ChatTurn] = []
 
 
 def _reserve(limiter: UsageLimiter, code: str, day: date, kind: str) -> None:
     try:
         limiter.reserve(code, day, kind)
     except DailyLimitReached as exc:
-        detail = "今天整個網站的額度用完了" if exc.scope == "site" else "這個邀請碼今天的額度用完了"
+        what = "修改次數" if kind == "revise" else "額度"
+        detail = f"今天整個網站的{what}用完了" if exc.scope == "site" else f"這個邀請碼今天的{what}用完了"
         raise HTTPException(status_code=429, detail=detail) from exc
 
 
@@ -202,17 +214,46 @@ async def create_outline(
     run: Annotated[AgentRunner, Depends(get_agent_runner)],
 ) -> OutlineResponse:
     """Run the planning agent. Counts toward the daily limits; failed runs are not counted."""
+    return await _run_counted(limiter, code, "outline", run(trip_request, None))
+
+
+@app.post("/api/outline/revise")
+async def revise_outline(
+    body: ReviseBody,
+    code: Annotated[str, Depends(require_invite_code)],
+    limiter: Annotated[UsageLimiter, Depends(get_limiter)],
+    run: Annotated[AgentRunner, Depends(get_agent_runner)],
+) -> OutlineResponse:
+    """Change an outline the traveller already has, from a chat message (e.g. 「第三天下午想換成嵐山」).
+    Has its own daily limit; failed runs are not counted."""
+    want = [body.request.start_date + timedelta(days=i) for i in range((body.request.end_date - body.request.start_date).days + 1)]
+    if [d.date for d in body.outline.days] != want:
+        raise HTTPException(status_code=422, detail="outline dates must match the request, one day each, in order")
+    try:
+        revision = Revision(outline=body.outline, message=body.message.strip(), history=body.history)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="訊息請在 1–500 字之間") from exc
+    return await _run_counted(limiter, code, "revise", run(body.request, revision))
+
+
+async def _run_counted(
+    limiter: UsageLimiter, code: str, kind: str, job: Coroutine[None, None, AgentResult]
+) -> OutlineResponse:
     day = today_in_japan()
-    _reserve(limiter, code, day, "outline")
+    try:
+        _reserve(limiter, code, day, kind)
+    except HTTPException:
+        job.close()  # never awaited: don't leave the coroutine dangling
+        raise
 
     try:
-        result = await run(trip_request)
+        result = await job
     except BaseException as exc:
-        limiter.release(code, day, "outline")
+        limiter.release(code, day, kind)
         if isinstance(exc, AgentRefused):
             raise HTTPException(status_code=422, detail="AI 無法處理這個需求，請調整內容後再試") from exc
         if isinstance(exc, (AgentError, PlacesError, anthropic.APIError)):
-            logging.getLogger(__name__).exception("outline failed")
+            logging.getLogger(__name__).exception("%s failed", kind)
             raise HTTPException(status_code=502, detail="排行程時發生錯誤，請稍後再試（這次不計入額度）") from exc
         raise
 
@@ -220,7 +261,8 @@ async def create_outline(
     return OutlineResponse(
         outline=result.outline,
         warnings=result.warnings,
-        remaining_today=limiter.remaining(code, day, "outline"),
+        reply=result.summary,
+        remaining_today=limiter.remaining(code, day, kind),
         stats=OutlineStats(
             model=s.model,
             turns=s.turns,

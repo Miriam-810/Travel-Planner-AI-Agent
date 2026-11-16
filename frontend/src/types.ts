@@ -117,10 +117,18 @@ export interface TripOutline {
   days: DayDraft[]
 }
 
+/** One message in the outline-revision chat. */
+export interface ChatTurn {
+  role: 'user' | 'assistant'
+  text: string
+}
+
 export interface OutlineResponse {
   outline: TripOutline
   warnings: string[]
   remaining_today: number
+  /** The AI's note: the plan's idea, or what a revision changed. */
+  reply?: string
   stats: {
     model: string
     turns: number

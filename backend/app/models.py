@@ -132,6 +132,25 @@ class TripOutline(BaseModel):
     days: list[DayDraft] = Field(min_length=1, max_length=MAX_TRIP_DAYS)
 
 
+MAX_CHAT_MESSAGE = 500
+MAX_CHAT_HISTORY = 10
+
+
+class ChatTurn(BaseModel):
+    """One earlier message in the revision chat, so "再改一次" has context."""
+
+    role: Literal["user", "assistant"]
+    text: str = Field(min_length=1, max_length=1000)
+
+
+class Revision(BaseModel):
+    """A change the traveller asked for, in their own words, to an outline they already have."""
+
+    outline: TripOutline
+    message: str = Field(min_length=1, max_length=MAX_CHAT_MESSAGE)
+    history: list[ChatTurn] = Field(default_factory=list, max_length=MAX_CHAT_HISTORY)
+
+
 # ---------------------------------------------------------------------------
 # 3. Finished itinerary (filled by our code, rendered by the frontend)
 # ---------------------------------------------------------------------------

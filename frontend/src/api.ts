@@ -1,4 +1,4 @@
-import type { OutlineResponse, Trip, TripOutline, TripRequest } from './types'
+import type { ChatTurn, OutlineResponse, Trip, TripOutline, TripRequest } from './types'
 
 /** An error whose message is ready to show to the user, in Chinese. */
 export class ApiError extends Error {
@@ -58,6 +58,23 @@ export function checkInvite(inviteCode: string, signal?: AbortSignal): Promise<{
 
 export function createOutline(trip: TripRequest, inviteCode: string, signal?: AbortSignal): Promise<OutlineResponse> {
   return request('/api/outline', { method: 'POST', body: JSON.stringify(trip), inviteCode, signal })
+}
+
+/** Ask the AI to change an outline, from a chat message. Has its own daily limit. */
+export function reviseOutline(
+  trip: TripRequest,
+  outline: TripOutline,
+  message: string,
+  history: ChatTurn[],
+  inviteCode: string,
+  signal?: AbortSignal,
+): Promise<OutlineResponse> {
+  return request('/api/outline/revise', {
+    method: 'POST',
+    body: JSON.stringify({ request: trip, outline, message, history }),
+    inviteCode,
+    signal,
+  })
 }
 
 export function buildTrip(

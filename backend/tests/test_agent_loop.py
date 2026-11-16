@@ -121,3 +121,47 @@ async def test_cost_estimate():
     # 2 turns × (1000 in × $0.10 + 500 out × $0.50) per million
     assert stats.claude_usd == pytest.approx(0.0007)
     assert stats.places_usd == pytest.approx(5 * 0.035)
+
+
+# --- revisions -----------------------------------------------------------------
+
+
+def revision(message="第二天想改去公園"):
+    from app.models import Revision, TripOutline
+
+    return Revision(outline=TripOutline.model_validate(valid_outline()), message=message)
+
+
+async def run_revision(llm, rev):
+    return await run_agent(
+        REQUEST, llm=llm, model="claude-haiku-5-5", effort="medium", providers=fake_providers(),
+        weather=fake_weather, today=TODAY, revision=rev,
+    )  # fmt: skip
+
+
+async def test_revision_keeps_existing_stops_valid_without_searching_again():
+    # Claude changes nothing it wasn't asked to; the existing places were looked up up front.
+    llm = FakeLLM([response(submit({**valid_outline(), "summary": "第二天下午改去公園"}))])
+    result = await run_revision(llm, revision())
+
+    assert result.warnings == []
+    assert result.summary == "第二天下午改去公園"
+    assert result.stats.searches == 0 and result.stats.details == 5  # lunch, park, dinner, museum, shop
+    opening = llm.calls[0]["messages"][0]["content"]
+    assert "current_outline" in opening and opening.rstrip().endswith("第二天想改去公園")
+
+
+async def test_revision_uses_the_same_system_prompt_as_planning():
+    # Same system prompt and tools, so the prompt cache is shared between planning and revising.
+    plan_llm = FakeLLM([response(*SEARCHES), response(submit(valid_outline()))])
+    await run(plan_llm)
+    rev_llm = FakeLLM([response(submit(valid_outline()))])
+    await run_revision(rev_llm, revision())
+    assert plan_llm.calls[0]["system"] == rev_llm.calls[0]["system"]
+    assert plan_llm.calls[0]["tools"] == rev_llm.calls[0]["tools"]
+
+
+async def test_submit_outline_asks_for_a_summary():
+    from app.agent.tools import SUBMIT_OUTLINE
+
+    assert "summary" in SUBMIT_OUTLINE["input_schema"]["required"]

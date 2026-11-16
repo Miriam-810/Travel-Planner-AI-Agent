@@ -1,22 +1,29 @@
-// The real-world base under the trip island: the coastline around the trip
-// (Natural Earth 1:10m, see scripts/build-coast.mjs), projected to scene units
-// with north away from the camera (−z) and east to the right (+x).
+// The trip as a 3D board map: the real coastline around the trip (Natural
+// Earth 1:10m, see scripts/build-coast.mjs), with every stop at its real
+// position, north away from the camera (−z) and east to the right (+x).
 //
-// Each day's islet floats above where the day really happens. When several
-// days share a city, the islets move apart, but a dashed line still drops to
-// the true spot on the map.
+// A whole trip can span 200 km while one day's stops sit within 2 km, so each
+// day gets its own scene size: small enough that its stops don't overlap
+// when the camera zooms into that day.
 import type { Day } from '../types'
 import landData from './japan-land.json'
-import { ISLET_RADIUS } from './layout'
 import { seeded } from './random'
 
-type P = [number, number]
+export type P = [number, number]
 
-/** Height of the floating islets above the map. */
-export const ISLET_HEIGHT = 3.4
-/** Islets closer than this would touch. */
-const ISLET_GAP = ISLET_RADIUS * 2 + 0.8
+/** Long side of the trip's own extent, in scene units. */
+const TRIP_SIZE = 30
 const KM_PER_DEG = 111.32
+
+export interface DayLayout {
+  /** Scene position of each stop, in visiting order (nudged apart if they would overlap). */
+  stops: P[]
+  /** Scene-unit size of one stop's little scene on this day. */
+  piece: number
+  /** Middle and half-size of the day's stops, for the camera. */
+  centre: P
+  half: P
+}
 
 export interface TripMap {
   /** Map rectangle in scene units, centred on 0. */
@@ -24,10 +31,10 @@ export interface TripMap {
   depth: number
   /** Coastline rings clipped to the map, in scene units (x, z). */
   land: P[][]
-  /** Where each day really happens, on the map. */
-  ground: P[]
-  /** Where each day's islet floats (x, y, z). */
-  islets: [number, number, number][]
+  days: DayLayout[]
+  /** Middle and half-size of all the stops, for the overview camera. */
+  centre: P
+  half: P
 }
 
 interface GeoBox {
@@ -74,16 +81,25 @@ function landRings() {
   return rings
 }
 
-/** Push islets apart until none touch, with a weak pull back towards their true spot. */
+function bounds(points: P[]): { centre: P; half: P } {
+  const xs = points.map((p) => p[0])
+  const zs = points.map((p) => p[1])
+  return {
+    centre: [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...zs) + Math.max(...zs)) / 2],
+    half: [(Math.max(...xs) - Math.min(...xs)) / 2, (Math.max(...zs) - Math.min(...zs)) / 2],
+  }
+}
+
+/** Push points apart until none are closer than `gap`, with a pull back towards where they really are. */
 function relax(home: P[], gap: number, seed: string): P[] {
   const rand = seeded(seed)
-  const pts = home.map(([x, z]) => [x + (rand() - 0.5) * 0.02, z + (rand() - 0.5) * 0.02] as P)
-  for (let iter = 0; iter < 300; iter++) {
+  const pts = home.map(([x, z]) => [x + (rand() - 0.5) * gap * 0.01, z + (rand() - 0.5) * gap * 0.01] as P)
+  for (let iter = 0; iter < 200; iter++) {
     for (let i = 0; i < pts.length; i++) {
       for (let j = i + 1; j < pts.length; j++) {
         const dx = pts[j][0] - pts[i][0]
         const dz = pts[j][1] - pts[i][1]
-        const d = Math.hypot(dx, dz) || 1e-6
+        const d = Math.hypot(dx, dz) || 1e-9
         if (d >= gap) continue
         const push = (gap - d) / 2
         pts[i][0] -= (dx / d) * push
@@ -93,8 +109,8 @@ function relax(home: P[], gap: number, seed: string): P[] {
       }
     }
     for (let i = 0; i < pts.length; i++) {
-      pts[i][0] += (home[i][0] - pts[i][0]) * 0.03
-      pts[i][1] += (home[i][1] - pts[i][1]) * 0.03
+      pts[i][0] += (home[i][0] - pts[i][0]) * 0.05
+      pts[i][1] += (home[i][1] - pts[i][1]) * 0.05
     }
   }
   return pts
@@ -105,28 +121,23 @@ function relax(home: P[], gap: number, seed: string): P[] {
  * to fill it with more of the real surroundings.
  */
 export function buildTripMap(days: Day[], seed: string, aspect = 1.6): TripMap {
-  const stops = days.flatMap((d) => d.stops)
-  const lats = stops.map((s) => s.lat)
-  const lngs = stops.map((s) => s.lng)
+  const all = days.flatMap((d) => d.stops)
+  const lats = all.map((s) => s.lat)
+  const lngs = all.map((s) => s.lng)
   const lat0 = (Math.min(...lats) + Math.max(...lats)) / 2
   const lng0 = (Math.min(...lngs) + Math.max(...lngs)) / 2
   const k = Math.cos((lat0 * Math.PI) / 180)
 
-  // The trip's own extent (km) sets the scale, so the islets stay large in view.
-  // Busier trips get a little more room so their islets can spread out.
-  const tripX = Math.max(((Math.max(...lngs) - Math.min(...lngs)) / 2) * k * KM_PER_DEG, 8)
-  const tripZ = Math.max(((Math.max(...lats) - Math.min(...lats)) / 2) * KM_PER_DEG, 8)
-  const want = Math.max(11, ISLET_GAP * Math.sqrt(days.length) * 1.25)
-  const unit = want / (2 * Math.max(tripX, tripZ)) // scene units per km
+  // The trip's own extent (km, at least 6 km across) sets the scale.
+  const tripX = Math.max(((Math.max(...lngs) - Math.min(...lngs)) / 2) * k * KM_PER_DEG, 3)
+  const tripZ = Math.max(((Math.max(...lats) - Math.min(...lats)) / 2) * KM_PER_DEG, 3)
+  const unit = TRIP_SIZE / (2 * Math.max(tripX, tripZ)) // scene units per km
 
-  // The map reaches well past the trip on every side, and past the edges of
-  // the view, so the real surroundings fill the picture.
+  // The map reaches well past the trip, and past the edges of the view.
   const groundAspect = aspect / 0.8
-  let halfX = Math.max(tripX * 2.4, tripZ * 2.4 * groundAspect, 40 / unit)
-  let halfZ = Math.max(tripZ * 2.4, halfX / groundAspect)
+  let halfX = Math.max(tripX * 2.2, tripZ * 2.2 * groundAspect, 12 / unit)
+  const halfZ = Math.max(tripZ * 2.2, halfX / groundAspect, 12 / unit)
   halfX = Math.max(halfX, halfZ * groundAspect)
-  const width = 2 * halfX * unit
-  const depth = 2 * halfZ * unit
 
   const toScene = (lng: number, lat: number): P => [(lng - lng0) * k * KM_PER_DEG * unit, -(lat - lat0) * KM_PER_DEG * unit]
 
@@ -143,11 +154,34 @@ export function buildTripMap(days: Day[], seed: string, aspect = 1.6): TripMap {
     if (clipped.length >= 3) land.push(clipped.map(([lng, lat]) => toScene(lng, lat)))
   }
 
-  const ground = days.map((d) => {
-    const n = Math.max(d.stops.length, 1)
-    return toScene(d.stops.reduce((s, x) => s + x.lng, 0) / n, d.stops.reduce((s, x) => s + x.lat, 0) / n)
+  const dayLayouts = days.map((d, i): DayLayout => {
+    const real = d.stops.map((s) => toScene(s.lng, s.lat))
+    const b = bounds(real.length ? real : [[0, 0]])
+    // Scene size: roughly the day's spread shared among its stops, within sensible limits.
+    const spread = Math.max(b.half[0], b.half[1]) * 2
+    const piece = Math.min(1.1, Math.max(0.18, spread / (Math.sqrt(Math.max(real.length, 1)) * 1.6)))
+    const stops = relax(real, piece * 1.35, `${seed}-${i}`)
+    return { stops, piece, ...bounds(stops.length ? stops : [[0, 0]]) }
   })
-  const islets = relax(ground, ISLET_GAP, seed).map(([x, z]) => [x, ISLET_HEIGHT, z] as [number, number, number])
 
-  return { width, depth, land, ground, islets }
+  return {
+    width: 2 * halfX * unit,
+    depth: 2 * halfZ * unit,
+    land,
+    days: dayLayouts,
+    ...bounds(dayLayouts.flatMap((d) => d.stops)),
+  }
+}
+
+/** Ray-casting point-in-polygon, for scattering trees on land. */
+export function onLand(x: number, z: number, land: P[][]): boolean {
+  let inside = false
+  for (const ring of land) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, zi] = ring[i]
+      const [xj, zj] = ring[j]
+      if (zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) inside = !inside
+    }
+  }
+  return inside
 }

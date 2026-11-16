@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     # POST /api/trips: each call looks up every stop on Google Places (up to 8 × 12).
     daily_trips_per_code: int = 10
     daily_trips_site: int = 50
+    # POST /api/outline/revise: chat edits to an outline (Claude + a few searches).
+    daily_revise_per_code: int = 15
+    daily_revise_site: int = 100
     usage_db_path: str = "usage.sqlite"
 
     # Server-side key for Google Places API (New). Empty → POST /api/trips only

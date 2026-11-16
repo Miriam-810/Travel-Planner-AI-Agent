@@ -109,6 +109,13 @@ SUBMIT_OUTLINE = {
                     "city = evening blue for big cities (e.g. Tokyo, Osaka); sage = calm default when nothing fits."
                 ),
             },
+            "summary": {
+                "type": "string",
+                "description": (
+                    "One or two sentences in Traditional Chinese (台灣用語) for the traveller: for a new plan, "
+                    "its idea; for a revision, exactly what you changed (or why you could not)"
+                ),
+            },
             "days": {
                 "type": "array",
                 "items": {
@@ -126,7 +133,7 @@ SUBMIT_OUTLINE = {
                 },
             }
         },
-        "required": ["theme", "days"],
+        "required": ["theme", "summary", "days"],
         "additionalProperties": False,
     },
 }

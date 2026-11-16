@@ -15,10 +15,10 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from app.agent.prompts import MAX_TOOL_CALLS, MAX_TURNS, first_message, system_prompt
+from app.agent.prompts import MAX_TOOL_CALLS, MAX_TURNS, first_message, revision_message, system_prompt
 from app.agent.tools import TOOLS, clamp_radius, search_result, weather_result
 from app.agent.validate import validate_outline
-from app.models import TripOutline, TripRequest, Weather
+from app.models import Revision, TripOutline, TripRequest, Weather
 from app.providers.base import Place, PlacesError, Providers
 from app.tools.weather import WeatherError
 
@@ -39,6 +39,7 @@ PRICES = {
     "claude-opus-5-5": (4.00, 20.00),
 }
 PLACES_SEARCH_USD = 0.035  # Text Search Enterprise, after the monthly free 1,000
+PLACES_DETAILS_USD = 0.02  # Place Details Enterprise, after the monthly free 1,000
 
 WeatherFn = Callable[[float, float, date], Awaitable[Weather]]
 
@@ -57,6 +58,7 @@ class AgentStats:
     turns: int = 0
     tool_calls: int = 0
     searches: int = 0
+    details: int = 0  # place lookups for an existing outline's stops (revisions)
     weather_calls: int = 0
     submits: int = 0
     input_tokens: int = 0
@@ -93,7 +95,7 @@ class AgentStats:
 
     @property
     def places_usd(self) -> float:
-        return round(self.searches * PLACES_SEARCH_USD, 4)
+        return round(self.searches * PLACES_SEARCH_USD + self.details * PLACES_DETAILS_USD, 4)
 
 
 @dataclass
@@ -102,6 +104,7 @@ class AgentResult:
     warnings: list[str]
     stats: AgentStats
     places: dict[str, Place] = field(default_factory=dict)
+    summary: str = ""  # Claude's note to the traveller: the plan's idea, or what a revision changed
 
 
 async def run_agent(
@@ -113,8 +116,10 @@ async def run_agent(
     providers: Providers,
     weather: WeatherFn,
     today: date,
+    revision: Revision | None = None,
 ) -> AgentResult:
-    """Plan `request` with the country's providers. Nothing here is country-specific.
+    """Plan `request` with the country's providers, or revise an outline the traveller already has.
+    Nothing here is country-specific.
 
     `llm` is an anthropic.AsyncAnthropic (or a test double with the same `beta.messages.create`).
     `weather` is get_weather bound to the HTTP client and the country's timezone.
@@ -122,10 +127,17 @@ async def run_agent(
     stats = AgentStats(model=model)
     places: dict[str, Place] = {}
     system = system_prompt(providers.country)
-    messages: list[dict] = [{"role": "user", "content": first_message(request, providers.country, today=today)}]
+    if revision is None:
+        opening = first_message(request, providers.country, today=today)
+    else:
+        # The stops Claude keeps must pass the same checks, so look them up first.
+        await _load_existing_places(revision.outline, providers, places, stats)
+        opening = revision_message(request, revision, providers.country, today=today)
+    messages: list[dict] = [{"role": "user", "content": opening}]
     nudges = 0
     last_valid: TripOutline | None = None
     last_errors: list[str] = []
+    last_summary = ""
 
     extra: dict[str, Any] = {}
     if model in FALLBACK_MODELS:
@@ -174,8 +186,11 @@ async def run_agent(
                 outline, errors = _check_submission(block.input, request, places, today)
                 if outline is not None:
                     last_valid, last_errors = outline, errors
+                    last_summary = str(block.input.get("summary", "")).strip()[:300]
                     if not errors or stats.submits > MAX_SUBMIT_RETRIES:
-                        return AgentResult(outline=outline, warnings=errors, stats=_logged(stats), places=places)
+                        return AgentResult(
+                            outline=outline, warnings=errors, stats=_logged(stats), places=places, summary=last_summary
+                        )
                 results.append(_error_result(block.id, "行程大綱有以下問題，請只修正這些地方再送出一次：\n- " + "\n- ".join(errors)))
             elif stats.tool_calls > MAX_TOOL_CALLS:
                 results.append(_error_result(block.id, "工具呼叫次數已用完。請用已經查到的地點，直接呼叫 submit_outline。"))
@@ -189,8 +204,23 @@ async def run_agent(
         messages.append({"role": "user", "content": results})
 
     if last_valid is not None:
-        return AgentResult(outline=last_valid, warnings=last_errors, stats=_logged(stats), places=places)
+        return AgentResult(
+            outline=last_valid, warnings=last_errors, stats=_logged(stats), places=places, summary=last_summary
+        )
     raise AgentError(f"no outline after {MAX_TURNS} turns")
+
+
+async def _load_existing_places(
+    outline: TripOutline, providers: Providers, places: dict[str, Place], stats: AgentStats
+) -> None:
+    ids = list(dict.fromkeys(s.place_id for d in outline.days for s in d.stops))
+    stats.details += len(ids)
+    found = await asyncio.gather(*(providers.places.get(pid) for pid in ids), return_exceptions=True)
+    for pid, p in zip(ids, found, strict=True):
+        if isinstance(p, Place):
+            places[pid] = p
+        else:
+            log.info("existing stop %s not found (%s); Claude will be asked to replace it", pid, p)
 
 
 def _logged(stats: AgentStats) -> AgentStats:

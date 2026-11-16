@@ -2,6 +2,8 @@ import { useRef, useState, type KeyboardEvent, type PointerEvent } from 'react'
 import { KindBadge } from '../components/Badges'
 import { ErrorBox, PrimaryButton, TextButton } from '../components/Form'
 import { Icon, type IconName } from '../components/Icon'
+import { ReviseChat, type ReviseChatProps } from '../components/ReviseChat'
+import { stopKey } from '../lib/editing'
 import { hhmm, monthDay, weekdayZh, zhNumber } from '../lib/format'
 import { palette, useTheme } from '../lib/themes'
 import type { DayDraft, TripOutline, TripRequest } from '../types'
@@ -17,6 +19,11 @@ interface Props {
   onReset: () => void
   onConfirm: () => void
   onBack: () => void
+  /** True when editing a saved trip rather than reviewing a new outline. */
+  editing: boolean
+  backLabel: string
+  confirmLabel: string
+  chat: ReviseChatProps
 }
 
 /** Move a stop to a new position. Time slots stay where they are; the stops shift through them. */
@@ -28,25 +35,48 @@ function moveStop(day: DayDraft, from: number, to: number): DayDraft {
   return { ...day, stops: stops.map((s, i) => ({ ...s, arrive: slots[i] })) }
 }
 
-export function OutlineReview({ request, outline, edited, warnings, busy, error, onChange, onReset, onConfirm, onBack }: Props) {
+export function OutlineReview({
+  request,
+  outline,
+  edited,
+  warnings,
+  busy,
+  error,
+  onChange,
+  onReset,
+  onConfirm,
+  onBack,
+  editing,
+  backLabel,
+  confirmLabel,
+  chat,
+}: Props) {
+  const changed = new Set(chat.changed)
   useTheme(outline.theme)
   const updateDay = (i: number, day: DayDraft) =>
     onChange({ ...outline, days: outline.days.map((d, j) => (j === i ? day : d)) })
   const stopCount = outline.days.reduce((n, d) => n + d.stops.length, 0)
 
   return (
-    <div className="mx-auto max-w-[720px] px-4 pt-8 pb-36 sm:px-6">
+    <div className="mx-auto max-w-[720px] px-4 pt-8 pb-36 sm:px-6 lg:max-w-[1120px]">
       <header className="mb-5 px-1">
-        <p className="m-0 text-[13px] text-ink-soft">大綱完成了，看看喜不喜歡</p>
+        <p className="m-0 text-[13px] text-ink-soft">{editing ? '編輯行程' : '大綱完成了，看看喜不喜歡'}</p>
         <h1 className="m-0 mt-1 text-[26px] leading-tight sm:text-[30px]">{request.destination}</h1>
         <p className="m-0 mt-1 flex flex-wrap items-center gap-x-2 text-[14px] text-ink-soft tabular-nums">
           {monthDay(request.start_date)}–{monthDay(request.end_date)}・{outline.days.length} 天・{stopCount} 個地點
           <span className="rounded-full bg-sage-soft px-2.5 py-0.5 text-[12px] text-sage-deep">配色：{palette(outline.theme).label}</span>
         </p>
         <p className="m-0 mt-3 text-[14.5px] text-ink">
-          可以調整順序或刪掉不想去的地方，確認後會補上天氣、營業時間和地圖。
+          可以拖移調整順序、刪掉不想去的地方，或在{' '}
+          <a href="#revise-chat" className="text-sage-deep underline underline-offset-2">
+            對話框
+          </a>
+          請 AI 修改。確認後會補上天氣、營業時間和地圖。
         </p>
       </header>
+
+      <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start lg:gap-5">
+      <div>
 
       {warnings.length > 0 && (
         <div className="mb-4 rounded-3xl bg-apricot-soft px-4 py-3 text-[14px] text-apricot-deep">
@@ -78,10 +108,16 @@ export function OutlineReview({ request, outline, edited, warnings, busy, error,
               </span>
             </div>
 
-            <StopList day={day} onChange={(d) => updateDay(di, d)} />
+            <StopList day={day} changed={changed} onChange={(d) => updateDay(di, d)} />
           </li>
         ))}
       </ol>
+      </div>
+
+      <div className="mt-4 lg:sticky lg:top-6 lg:mt-0">
+        <ReviseChat {...chat} />
+      </div>
+      </div>
 
       {/* Actions stay reachable at the bottom of the screen on long outlines. */}
       <div className="fixed inset-x-0 bottom-0 z-20 px-3 pb-3">
@@ -89,11 +125,19 @@ export function OutlineReview({ request, outline, edited, warnings, busy, error,
           {error && <ErrorBox>{error}</ErrorBox>}
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex">
-              <TextButton onClick={onBack}>上一步</TextButton>
+              <TextButton onClick={onBack}>{backLabel}</TextButton>
               {edited && <TextButton onClick={onReset}>還原</TextButton>}
+              {/* On narrow screens the chat sits below the whole outline: a shortcut to it. */}
+              <a
+                href="#revise-chat"
+                onClick={() => setTimeout(() => document.getElementById('revise-input')?.focus(), 400)}
+                className="self-center px-3 text-[15px] text-sage-deep no-underline lg:hidden"
+              >
+                請 AI 修改
+              </a>
             </div>
             <PrimaryButton disabled={busy} onClick={onConfirm}>
-              {busy ? '產生中…' : '確認，產生行程'}
+              {busy ? '產生中…' : confirmLabel}
             </PrimaryButton>
           </div>
           {edited && (
@@ -113,7 +157,7 @@ interface Drag {
 }
 
 /** One day's stops. Drag a row by its handle (or use the arrow keys on it) to reorder. */
-function StopList({ day, onChange }: { day: DayDraft; onChange: (day: DayDraft) => void }) {
+function StopList({ day, changed, onChange }: { day: DayDraft; changed: Set<string>; onChange: (day: DayDraft) => void }) {
   const list = useRef<HTMLOListElement>(null)
   const start = useRef({ y: 0, mids: [] as number[] })
   const [drag, setDrag] = useState<Drag | null>(null)
@@ -167,6 +211,7 @@ function StopList({ day, onChange }: { day: DayDraft; onChange: (day: DayDraft) 
     <ol ref={list} className="m-0 flex list-none flex-col p-0">
       {day.stops.map((stop, si) => {
         const dragging = drag?.from === si
+        const isNew = changed.has(stopKey(day.date, stop.place_id, stop.arrive))
         return (
           <li
             key={`${stop.place_id}-${stop.name}`}
@@ -177,13 +222,16 @@ function StopList({ day, onChange }: { day: DayDraft; onChange: (day: DayDraft) 
                 : drag
                   ? 'transition-transform duration-150'
                   : ''
-            }`}
+            } ${isNew && !dragging ? '-mx-2 rounded-2xl border-transparent bg-sage-soft px-2' : ''}`}
           >
             <span className="pt-0.5 text-[14px] font-bold tabular-nums">{hhmm(stop.arrive)}</span>
             <span className="min-w-0">
               <span className="block font-[family-name:var(--font-round)] text-[15px] leading-snug">
                 <KindBadge stop={stop} />
                 {stop.name}
+                {isNew && (
+                  <span className="ml-1.5 rounded-full bg-sage px-1.5 py-px align-[2px] text-[11px] text-white">AI 修改</span>
+                )}
               </span>
               {stop.note && <span className="mt-0.5 block text-[13px] text-ink-soft">{stop.note}</span>}
               <span className="mt-0.5 block text-[12px] text-ink-soft">停留 {stop.stay_min} 分</span>

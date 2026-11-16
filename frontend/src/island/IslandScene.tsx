@@ -1,20 +1,26 @@
-// The trip as floating islets, one per day, in the trip's colour theme,
-// hovering over a low-poly map of the real coastline. A dashed line drops
-// from each islet to where that day really happens; dashed routes on the map
-// link the days in order. Opening a day flies the camera to its islet.
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { useMemo, useRef } from 'react'
+// The trip as a game-like 3D board map: the real coastline, every stop as a
+// little scene (ramen shop, shrine, castle…) at its real position, and a
+// dotted trail through the stops in visiting order. The overview shows a
+// numbered flag for each day; opening a day flies the camera down to it and
+// numbers its stops.
+import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { Trip } from '../types'
-import { Islet } from './Islet'
-import { ISLET_RADIUS } from './layout'
+import { badgeTexture } from './labels'
 import { palette3d, type Palette3D } from './palette3d'
 import { seeded } from './random'
-import { buildTripMap, ISLET_HEIGHT, type TripMap } from './tripMap'
+import { PIECE_HEIGHT, sceneOf } from './sceneKinds'
+import { ScenePiece } from './scenes'
+import { buildTripMap, onLand, type P, type TripMap } from './tripMap'
 
 const FOV = 35
-const OVERVIEW_TILT = THREE.MathUtils.degToRad(56)
-const DAY_TILT = THREE.MathUtils.degToRad(54)
+const OVERVIEW_TILT = THREE.MathUtils.degToRad(55)
+const DAY_TILT = THREE.MathUtils.degToRad(52)
+const LAND_TOP = 0.16
+const SLAB = 0.8
+/** Scene pieces are modelled about 0.6 wide. */
+const MODEL_SIZE = 0.6
 
 interface Props {
   trip: Trip
@@ -27,6 +33,10 @@ interface Props {
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
+function pointer(on: boolean) {
+  document.body.style.cursor = on ? 'pointer' : ''
+}
+
 export default function IslandScene(props: Props) {
   const pal = palette3d(props.trip.theme)
   return (
@@ -35,13 +45,12 @@ export default function IslandScene(props: Props) {
       style={{ background: `linear-gradient(180deg, ${pal.skyTop} 0%, ${pal.skyBottom} 100%)` }}
     >
       <Canvas
-        shadows
         dpr={[1, 2]}
-        camera={{ fov: FOV, near: 0.1, far: 400, position: [0, 30, 36] }}
+        camera={{ fov: FOV, near: 0.01, far: 500, position: [0, 30, 30] }}
         gl={{ alpha: true, antialias: true }}
         fallback={
           <p className="absolute inset-x-0 bottom-4 text-center text-[13px] text-ink-soft">
-            這個瀏覽器無法顯示行程島，請切換到「地圖」。
+            這個瀏覽器無法顯示立體地圖，請切換到「地圖」。
           </p>
         }
       >
@@ -58,56 +67,80 @@ function Scene({ trip, openDay, selectedStopId, onPickDay, onPickStop, pal }: Pr
   const viewAspect = Math.round(aspect * 4) / 4
   const map = useMemo(() => buildTripMap(trip.days, trip.id, viewAspect), [trip.days, trip.id, viewAspect])
   const reducedMotion = useMemo(() => prefersReducedMotion(), [])
-  const reach = Math.max(map.width, map.depth) / 2 + ISLET_RADIUS * 2
 
   return (
     <>
-      <hemisphereLight args={[pal.skyTop, pal.rockDark, 1.4]} />
-      <directionalLight
-        position={[reach * 0.4, reach * 0.9, reach * 0.5]}
-        intensity={1.7}
-        castShadow
-        shadow-intensity={0.55}
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-reach}
-        shadow-camera-right={reach}
-        shadow-camera-top={reach}
-        shadow-camera-bottom={-reach}
-        shadow-camera-far={reach * 4}
-      />
-      <ambientLight intensity={0.35} />
+      <hemisphereLight args={[pal.skyTop, pal.rockDark, 1.5]} />
+      <directionalLight position={[12, 30, 18]} intensity={1.6} />
+      <ambientLight intensity={0.3} />
 
       <CameraRig map={map} openDay={openDay} aspect={aspect} reducedMotion={reducedMotion} />
-
       <MapBase map={map} pal={pal} />
-      <GroundRoutes map={map} openDay={openDay} pal={pal} />
-      <Leaders map={map} openDay={openDay} pal={pal} />
+      {/* Trees are sized for the whole map; zoomed into a day they would tower over the scenes. */}
+      {openDay === null && <Trees map={map} pal={pal} seed={trip.id} />}
+      <Trail map={map} openDay={openDay} pal={pal} />
 
-      {trip.days.map((day, i) => (
-        <Islet
-          key={day.date}
-          day={day}
-          index={i}
-          position={map.islets[i]}
-          pal={pal}
-          open={openDay === i}
-          faded={openDay !== null && openDay !== i}
-          selectedStopId={selectedStopId}
-          reducedMotion={reducedMotion}
-          onPickDay={onPickDay}
-          onPickStop={onPickStop}
-        />
-      ))}
+      {trip.days.map((day, di) => {
+        const layout = map.days[di]
+        const open = openDay === di
+        // Zoomed into one day, other days' scenes would loom huge or crowd it: show only this day.
+        if (openDay !== null && !open) return null
+        const scale = layout.piece / MODEL_SIZE
+        return (
+          <group key={day.date}>
+            {day.stops.map((stop, si) => {
+              const [x, z] = layout.stops[si]
+              const selected = open && stop.id === selectedStopId
+              const kind = sceneOf(stop)
+              return (
+                <group key={stop.id}>
+                  <group
+                    position={[x, LAND_TOP, z]}
+                    scale={scale * (selected ? 1.18 : 1)}
+                    onClick={(e: ThreeEvent<MouseEvent>) => {
+                      e.stopPropagation()
+                      if (open) onPickStop(di, stop.id)
+                      else onPickDay(di)
+                    }}
+                    onPointerOver={(e) => {
+                      e.stopPropagation()
+                      pointer(true)
+                    }}
+                    onPointerOut={() => pointer(false)}
+                  >
+                    <ScenePiece
+                      kind={kind}
+                      pal={pal}
+                      opacity={1}
+                      reducedMotion={reducedMotion}
+                    />
+                  </group>
+                  {open && (
+                    <sprite
+                      position={[x, LAND_TOP + (PIECE_HEIGHT[kind] + 0.22) * scale * (selected ? 1.18 : 1), z]}
+                      scale={Array(3).fill(layout.piece * (selected ? 0.62 : 0.48)) as [number, number, number]}
+                      renderOrder={10}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onPickStop(di, stop.id)
+                      }}
+                    >
+                      <spriteMaterial map={badgeTexture(String(si + 1), selected ? pal.ink : pal.accent)} depthTest={false} />
+                    </sprite>
+                  )}
+                </group>
+              )
+            })}
+          </group>
+        )
+      })}
 
-      <Clouds map={map} reducedMotion={reducedMotion} seed={trip.id} />
+      {openDay === null && <DayFlags map={map} openDay={openDay} pal={pal} onPickDay={onPickDay} reducedMotion={reducedMotion} />}
     </>
   )
 }
 
-const LAND_TOP = 0.22
-const SLAB = 0.7
-
-/** The sea as a thick tile, with the real coastline raised on top of it. */
+/** The sea as a thick board, with the real coastline raised on top of it. */
 function MapBase({ map, pal }: { map: TripMap; pal: Palette3D }) {
   const land = useMemo(() => {
     const shapes = map.land.map((ring) => new THREE.Shape(ring.map(([x, z]) => new THREE.Vector2(x, -z))))
@@ -115,20 +148,20 @@ function MapBase({ map, pal }: { map: TripMap; pal: Palette3D }) {
     geo.rotateX(-Math.PI / 2)
     return geo
   }, [map])
+  const sea = useMemo(() => new THREE.Color(pal.water).multiplyScalar(0.9), [pal.water])
 
   return (
     <group>
-      {/* sea tile: water on top, rock underneath */}
-      <mesh position={[0, -SLAB / 2, 0]} receiveShadow>
+      <mesh position={[0, -SLAB / 2, 0]}>
         <boxGeometry args={[map.width, SLAB, map.depth]} />
         <meshStandardMaterial attach="material-0" color={pal.rock} flatShading />
         <meshStandardMaterial attach="material-1" color={pal.rock} flatShading />
-        <meshStandardMaterial attach="material-2" color={new THREE.Color(pal.water).multiplyScalar(0.88)} />
+        <meshStandardMaterial attach="material-2" color={sea} roughness={0.6} />
         <meshStandardMaterial attach="material-3" color={pal.rockDark} flatShading />
         <meshStandardMaterial attach="material-4" color={pal.rock} flatShading />
         <meshStandardMaterial attach="material-5" color={pal.rock} flatShading />
       </mesh>
-      <mesh geometry={land} receiveShadow castShadow>
+      <mesh geometry={land}>
         <meshStandardMaterial attach="material-0" color={pal.grass} flatShading />
         <meshStandardMaterial attach="material-1" color={pal.grassEdge} flatShading />
       </mesh>
@@ -136,115 +169,191 @@ function MapBase({ map, pal }: { map: TripMap; pal: Palette3D }) {
   )
 }
 
-/** A dashed line from each islet down to the day's real spot, and a pin there. */
-function Leaders({ map, openDay, pal }: { map: TripMap; openDay: number | null; pal: Palette3D }) {
-  return (
-    <group>
-      {map.ground.map(([gx, gz], i) => {
-        const [ix, iy, iz] = map.islets[i]
-        const active = openDay === null || openDay === i
-        const from = new THREE.Vector3(ix, iy - 1.2, iz)
-        const to = new THREE.Vector3(gx, LAND_TOP + 0.05, gz)
-        const len = from.distanceTo(to)
-        const dashes = Math.max(3, Math.floor(len / 0.32))
-        const colour = openDay === i ? pal.accent : pal.ink
-        return (
-          <group key={i}>
-            {Array.from({ length: dashes }, (_, k) => {
-              const t = (k + 0.5) / dashes
-              const p = from.clone().lerp(to, t)
-              return (
-                <mesh key={k} position={p}>
-                  <sphereGeometry args={[0.035, 6, 4]} />
-                  <meshBasicMaterial color={colour} transparent opacity={active ? 0.75 : 0.25} />
-                </mesh>
-              )
-            })}
-            <mesh position={[gx, LAND_TOP + 0.03, gz]}>
-              <cylinderGeometry args={[0.2, 0.2, 0.06, 16]} />
-              <meshStandardMaterial color={colour} transparent opacity={active ? 1 : 0.35} />
-            </mesh>
-            <mesh position={[gx, LAND_TOP + 0.02, gz]} rotation={[-Math.PI / 2, 0, 0]}>
-              <ringGeometry args={[0.28, 0.36, 24]} />
-              <meshBasicMaterial color="#ffffff" transparent opacity={active ? 0.9 : 0.3} />
-            </mesh>
-          </group>
-        )
-      })}
-    </group>
-  )
-}
-
-/** Dashes on the map from one day's spot to the next, in visiting order. */
-function GroundRoutes({ map, openDay, pal }: { map: TripMap; openDay: number | null; pal: Palette3D }) {
-  return (
-    <group>
-      {map.ground.slice(1).map((to, i) => {
-        const from = map.ground[i]
-        const dx = to[0] - from[0]
-        const dz = to[1] - from[1]
-        const len = Math.hypot(dx, dz)
-        if (len < 0.5) return null // same place two days running
-        const angle = Math.atan2(dx, dz)
-        const touches = openDay === i || openDay === i + 1
-        const n = Math.max(2, Math.floor(len / 0.5))
-        return (
-          <group key={i}>
-            {Array.from({ length: n }, (_, k) => {
-              const t = (k + 0.5) / n
-              return (
-                <mesh key={k} position={[from[0] + dx * t, LAND_TOP + 0.04, from[1] + dz * t]} rotation={[0, angle, 0]}>
-                  <boxGeometry args={[0.09, 0.03, 0.26]} />
-                  <meshBasicMaterial color={touches ? pal.accent : '#ffffff'} transparent opacity={touches ? 1 : 0.85} />
-                </mesh>
-              )
-            })}
-          </group>
-        )
-      })}
-    </group>
-  )
-}
-
-/** A few clouds drifting between the map and the islets. */
-function Clouds({ map, reducedMotion, seed }: { map: TripMap; reducedMotion: boolean; seed: string }) {
-  const group = useRef<THREE.Group>(null)
-  const clouds = useMemo(() => {
-    const rand = seeded(seed)
-    return Array.from({ length: 6 }, () => ({
-      x: (rand() - 0.5) * map.width,
-      y: 1.4 + rand() * 0.8,
-      z: (rand() - 0.5) * map.depth,
-      s: 0.5 + rand() * 0.5,
-    }))
+/** Low-poly trees scattered over the land, kept clear of the stops. */
+function Trees({ map, pal, seed }: { map: TripMap; pal: Palette3D; seed: string }) {
+  const mesh = useRef<THREE.InstancedMesh>(null)
+  const spots = useMemo(() => {
+    const rand = seeded(`${seed}-trees`)
+    const clear = map.days.flatMap((d) => d.stops.map((s) => ({ s, r: d.piece * 1.4 + 0.4 })))
+    const out: { x: number; z: number; s: number }[] = []
+    const want = Math.min(900, Math.round((map.width * map.depth) / 6))
+    for (let tries = 0; out.length < want && tries < want * 6; tries++) {
+      const x = (rand() - 0.5) * map.width * 0.98
+      const z = (rand() - 0.5) * map.depth * 0.98
+      if (!onLand(x, z, map.land)) continue
+      if (clear.some(({ s, r }) => Math.hypot(s[0] - x, s[1] - z) < r)) continue
+      out.push({ x, z, s: 0.7 + rand() * 0.6 })
+    }
+    return out
   }, [map, seed])
 
-  useFrame((_, delta) => {
-    if (!group.current || reducedMotion) return
-    group.current.position.x = ((group.current.position.x + delta * 0.12 + map.width / 2) % map.width) - map.width / 2
-  })
+  useEffect(() => {
+    const m = mesh.current
+    if (!m) return
+    const mat = new THREE.Matrix4()
+    const colour = new THREE.Color()
+    spots.forEach((t, i) => {
+      mat.makeScale(t.s, t.s, t.s).setPosition(t.x, LAND_TOP + 0.3 * t.s, t.z)
+      m.setMatrixAt(i, mat)
+      m.setColorAt(i, colour.set(pal.leaves[i % pal.leaves.length]))
+    })
+    m.instanceMatrix.needsUpdate = true
+    if (m.instanceColor) m.instanceColor.needsUpdate = true
+  }, [spots, pal])
 
   return (
-    <group ref={group}>
-      {clouds.map((c, i) => (
-        <group key={i} position={[c.x, c.y, c.z]} scale={c.s}>
-          {[
-            [0, 0, 0, 0.7],
-            [0.6, -0.1, 0.1, 0.5],
-            [-0.6, -0.12, -0.05, 0.5],
-          ].map(([x, y, z, r], j) => (
-            <mesh key={j} position={[x, y, z]}>
-              <icosahedronGeometry args={[r, 1]} />
-              <meshStandardMaterial color="#ffffff" flatShading transparent opacity={0.7} />
-            </mesh>
-          ))}
-        </group>
-      ))}
+    <instancedMesh ref={mesh} args={[undefined, undefined, spots.length]} raycast={() => null}>
+      <coneGeometry args={[0.24, 0.6, 5]} />
+      <meshStandardMaterial flatShading />
+    </instancedMesh>
+  )
+}
+
+/** A dotted trail through every stop in order: fine dots within a day, bigger ones between days. */
+function Trail({ map, openDay, pal }: { map: TripMap; openDay: number | null; pal: Palette3D }) {
+  const dots = useMemo(() => {
+    const out: { p: P; r: number; day: number; between: boolean }[] = []
+    const line = (a: P, b: P, step: number, r: number, day: number, between: boolean) => {
+      const len = Math.hypot(b[0] - a[0], b[1] - a[1])
+      const n = Math.floor(len / step)
+      for (let k = 1; k < n; k++) {
+        const t = k / n
+        out.push({ p: [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t], r, day, between })
+      }
+    }
+    map.days.forEach((d, di) => {
+      for (let i = 1; i < d.stops.length; i++) line(d.stops[i - 1], d.stops[i], d.piece * 0.32, d.piece * 0.05, di, false)
+      const next = map.days[di + 1]
+      if (next && d.stops.length && next.stops.length) line(d.stops.at(-1)!, next.stops[0], 0.7, 0.13, di, true)
+    })
+    return out
+  }, [map])
+
+  return (
+    <group>
+      {dots.map((d, i) => {
+        // Zoomed into a day, only that day's own trail is drawn; the big dots between days would loom.
+        if (openDay !== null && (d.between || d.day !== openDay)) return null
+        const active = openDay === d.day
+        const dim = false
+        return (
+          <mesh key={i} position={[d.p[0], LAND_TOP + d.r * 0.6, d.p[1]]} raycast={() => null}>
+            <cylinderGeometry args={[d.r, d.r, d.r * 0.8, 8]} />
+            <meshStandardMaterial
+              color={active && !d.between ? pal.accent : d.between ? '#ffffff' : pal.path}
+              transparent
+              opacity={dim ? 0.35 : 1}
+            />
+          </mesh>
+        )
+      })}
     </group>
   )
 }
 
-/** Glides the camera to frame the whole map, or the open day's islet. */
+const FLAG_GAP = 2.6
+
+/**
+ * Where each day's flag stands. Days that start in the same place (four days
+ * in one city) fan out in a ring around it, each with a dotted line back to
+ * the real spot, like spread-out pins on a map.
+ */
+function flagSpots(map: TripMap): { base: P; flag: P }[] {
+  const bases = map.days.map((d) => (d.stops.length ? d.stops[0] : d.centre))
+  const groups: number[][] = []
+  bases.forEach((b, i) => {
+    const g = groups.find((g) => Math.hypot(bases[g[0]][0] - b[0], bases[g[0]][1] - b[1]) < FLAG_GAP)
+    if (g) g.push(i)
+    else groups.push([i])
+  })
+  const out: { base: P; flag: P }[] = bases.map((b) => ({ base: b, flag: b }))
+  for (const g of groups) {
+    if (g.length === 1) continue
+    const r = Math.max(FLAG_GAP * 0.75, (FLAG_GAP * g.length) / (2 * Math.PI))
+    g.forEach((day, k) => {
+      const a = -Math.PI / 2 + (k / g.length) * Math.PI * 2 // first day at the back, then clockwise
+      const [x, z] = bases[g[0]]
+      out[day] = { base: bases[day], flag: [x + Math.cos(a) * r, z + Math.sin(a) * r] }
+    })
+  }
+  return out
+}
+
+/** A numbered flag for each day, so the overview reads like a board game. */
+function DayFlags({
+  map,
+  openDay,
+  pal,
+  onPickDay,
+  reducedMotion,
+}: {
+  map: TripMap
+  openDay: number | null
+  pal: Palette3D
+  onPickDay: (i: number) => void
+  reducedMotion: boolean
+}) {
+  const group = useRef<THREE.Group>(null)
+  const spots = useMemo(() => flagSpots(map), [map])
+  useFrame(({ clock }) => {
+    if (!group.current || reducedMotion) return
+    group.current.children.forEach((flag, i) => {
+      flag.position.y = Math.sin(clock.elapsedTime * 1.4 + i) * 0.06
+    })
+  })
+  return (
+    <group ref={group}>
+      {spots.map(({ base, flag }, i) => {
+        if (openDay === i || !map.days[i].stops.length) return <group key={i} />
+        const [x, z] = flag
+        const dim = openDay !== null
+        const moved = Math.hypot(flag[0] - base[0], flag[1] - base[1])
+        const leaderDots = Math.floor(moved / 0.3)
+        return (
+          <group
+            key={i}
+            onClick={(e) => {
+              e.stopPropagation()
+              onPickDay(i)
+            }}
+            onPointerOver={(e) => {
+              e.stopPropagation()
+              pointer(true)
+            }}
+            onPointerOut={() => pointer(false)}
+          >
+            {Array.from({ length: leaderDots }, (_, k) => {
+              const t = (k + 0.5) / leaderDots
+              return (
+                <mesh key={k} position={[base[0] + (x - base[0]) * t, LAND_TOP + 0.03, base[1] + (z - base[1]) * t]} raycast={() => null}>
+                  <cylinderGeometry args={[0.05, 0.05, 0.04, 6]} />
+                  <meshBasicMaterial color={pal.ink} transparent opacity={dim ? 0.2 : 0.55} />
+                </mesh>
+              )
+            })}
+            <mesh position={[x, LAND_TOP + 0.05, z]}>
+              <cylinderGeometry args={[0.42, 0.48, 0.14, 10]} />
+              <meshStandardMaterial color={pal.wall} transparent opacity={dim ? 0.4 : 1} />
+            </mesh>
+            <mesh position={[x, LAND_TOP + 1.6, z]}>
+              <cylinderGeometry args={[0.07, 0.07, 3.2, 6]} />
+              <meshStandardMaterial color={pal.ink} transparent opacity={dim ? 0.4 : 1} />
+            </mesh>
+            <sprite position={[x, LAND_TOP + 3.8, z]} scale={[2.4, 2.4, 2.4]} renderOrder={5}>
+              <spriteMaterial map={badgeTexture(String(i + 1), pal.accent)} transparent opacity={dim ? 0.45 : 1} depthTest={false} />
+            </sprite>
+            {/* bigger invisible target, easy to tap */}
+            <mesh position={[x, LAND_TOP + 2.8, z]} visible={false}>
+              <sphereGeometry args={[1.3, 8, 8]} />
+            </mesh>
+          </group>
+        )
+      })}
+    </group>
+  )
+}
+
+/** Glides the camera to frame the whole trip, or the open day. */
 function CameraRig({
   map,
   openDay,
@@ -262,29 +371,26 @@ function CameraRig({
   const goal = useMemo(() => {
     const vfov = THREE.MathUtils.degToRad(FOV)
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * aspect)
-    if (openDay !== null && map.islets[openDay]) {
-      const [x, y, z] = map.islets[openDay]
-      const span = ISLET_RADIUS * 2 + 0.4
-      const dist = Math.max(span / (2 * Math.tan(hfov / 2)), span / (2 * Math.tan(vfov / 2))) * 0.95
-      const target = new THREE.Vector3(x, y + 0.3, z)
-      const pos = target.clone().add(new THREE.Vector3(0, Math.sin(DAY_TILT) * dist, Math.cos(DAY_TILT) * dist))
-      return { pos, target }
-    }
-    // Frame the islets and their spots on the map; the map itself runs on past the edges.
-    const xs = [...map.islets.flatMap((p) => [p[0] - ISLET_RADIUS, p[0] + ISLET_RADIUS]), ...map.ground.map((g) => g[0])]
-    const zs = [...map.islets.flatMap((p) => [p[2] - ISLET_RADIUS, p[2] + ISLET_RADIUS]), ...map.ground.map((g) => g[1])]
-    // Islets float closer to the camera than the map, so they look wider: leave room at the sides.
-    const width = (Math.max(...xs) - Math.min(...xs)) * 1.15 + 1.5
-    const depth = (Math.max(...zs) - Math.min(...zs)) * Math.sin(OVERVIEW_TILT) + ISLET_HEIGHT * Math.cos(OVERVIEW_TILT) + 4
-    const dist = Math.max(width / (2 * Math.tan(hfov / 2)), depth / (2 * Math.tan(vfov / 2))) * 1.05
-    // Aim a little north of the middle so the islets sit lower, clear of the title card.
-    const target = new THREE.Vector3((Math.max(...xs) + Math.min(...xs)) / 2, ISLET_HEIGHT * 0.45, (Math.max(...zs) + Math.min(...zs)) / 2 - 1.3)
-    const pos = target.clone().add(new THREE.Vector3(0, Math.sin(OVERVIEW_TILT) * dist, Math.cos(OVERVIEW_TILT) * dist))
+    const day = openDay !== null ? map.days[openDay] : null
+    const tilt = day ? DAY_TILT : OVERVIEW_TILT
+    const [cx, cz] = day ? day.centre : map.centre
+    // Margin around the stops: a scene and a half for a day, room for the flags overall.
+    const pad = day ? day.piece * 1.6 : 4
+    const hx = (day ? day.half[0] : map.half[0]) + pad
+    const hz = (day ? day.half[1] : map.half[1]) + pad
+    const width = hx * 2
+    const depth = hz * 2 * Math.sin(tilt) + (day ? day.piece : 4.5) * Math.cos(tilt)
+    // Overview: extra room for the tall flags and the title card over the top of the map.
+    const dist = Math.max(width / (2 * Math.tan(hfov / 2)), depth / (2 * Math.tan(vfov / 2))) * (day ? 1 : 1.18)
+    // Aim a little north of the middle so the stops sit lower, clear of the title card.
+    // (On phones the title card takes more of the width, so more so.)
+    const target = new THREE.Vector3(cx, LAND_TOP, cz - hz * (day ? 0.1 : aspect < 1 ? 0.22 : 0.12))
+    const pos = target.clone().add(new THREE.Vector3(0, Math.sin(tilt) * dist, Math.cos(tilt) * dist))
     return { pos, target }
   }, [map, openDay, aspect])
 
   useFrame((_, delta) => {
-    const k = reducedMotion ? 1 : 1 - Math.exp(-delta * 3.2)
+    const k = reducedMotion ? 1 : 1 - Math.exp(-delta * 3)
     camera.position.lerp(goal.pos, k)
     lookAt.current.lerp(goal.target, k)
     camera.lookAt(lookAt.current)

@@ -1,12 +1,14 @@
 // Every trip this device has planned. Until there are accounts, the device is
 // the user: trips live in localStorage, and a first sign-in can upload them.
-import type { Trip } from '../types'
+import type { Trip, TripRequest } from '../types'
 import { load, save } from './storage'
 
 const KEY = 'tp.trips'
 
 export interface SavedTrip {
   trip: Trip
+  /** The form answers the trip was planned from, so it can be edited later. Missing on early saves. */
+  request?: TripRequest
   savedAt: string
 }
 
@@ -18,9 +20,14 @@ export function loadLibrary(): SavedTrip[] {
   return Array.isArray(list) ? list.filter((e) => e?.trip?.id && Array.isArray(e.trip.days)) : []
 }
 
-/** Adds the trip, or replaces the saved one with the same id. Newest first. */
-export function withTrip(list: SavedTrip[], trip: Trip): SavedTrip[] {
-  return [{ trip, savedAt: new Date().toISOString() }, ...list.filter((e) => e.trip.id !== trip.id)]
+/**
+ * Adds the trip, or replaces the saved one with the same id (or `replaces`,
+ * when an edit rebuilt it under a new id). Newest first.
+ */
+export function withTrip(list: SavedTrip[], trip: Trip, request?: TripRequest, replaces?: string): SavedTrip[] {
+  const old = list.find((e) => e.trip.id === trip.id || e.trip.id === replaces)
+  const entry = { trip, request: request ?? old?.request, savedAt: new Date().toISOString() }
+  return [entry, ...list.filter((e) => e.trip.id !== trip.id && e.trip.id !== replaces)]
 }
 
 export function withoutTrip(list: SavedTrip[], id: string): SavedTrip[] {
