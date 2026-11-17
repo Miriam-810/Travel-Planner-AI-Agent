@@ -10,6 +10,7 @@ import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { statusOf, tripCentre, type SavedTrip, type TripStatus } from '../lib/library'
 import { palette3d } from '../island/palette3d'
 import { mainCity, type LandmarkKind } from '../island/cities'
+import { badgeTexture } from '../island/labels'
 import { Landmark } from '../island/landmarks'
 import { seeded } from '../island/random'
 import { isLand } from './land'
@@ -367,24 +368,41 @@ interface Placed {
   status: TripStatus
   theme: string
   phase: number
-  /** The trip's main city's landmark, standing on its island. */
+  /** The landmark standing on its island: the trip's main city's, or the country's for several trips. */
   landmark: LandmarkKind | null
+  /** How many trips this island stands for (one per country). */
+  count: number
 }
 
-/** Trips close together (Tokyo, then Kyoto) are nudged apart so their islands don't overlap. */
+/** The island for a country with several trips carries a landmark everyone knows it by. */
+const COUNTRY_LANDMARK: Record<string, LandmarkKind> = { JP: 'fuji' }
+
+/** Opening a country's island: the id the globe passes up is "country:" + its code. */
+export const COUNTRY_PREFIX = 'country:'
+
+/**
+ * One island per country, at the middle of its trips: however many trips,
+ * the globe stays readable. Countries close together are nudged apart.
+ */
 function place(trips: SavedTrip[]): Placed[] {
-  const placed: Placed[] = []
-  trips.forEach((e, i) => {
-    const c = tripCentre(e.trip)
-    if (!c) return
-    placed.push({
-      id: e.trip.id,
-      dir: toVector(c.lat, c.lng),
-      status: statusOf(e),
-      theme: e.trip.theme,
+  const byCountry = new Map<string, SavedTrip[]>()
+  for (const e of trips) if (tripCentre(e.trip)) byCountry.set(e.trip.country, [...(byCountry.get(e.trip.country) ?? []), e])
+  const placed: Placed[] = [...byCountry.entries()].map(([code, list], i) => {
+    const dir = list.reduce((v, e) => {
+      const c = tripCentre(e.trip)!
+      return v.add(toVector(c.lat, c.lng))
+    }, new THREE.Vector3())
+    const newest = list[0]
+    return {
+      id: COUNTRY_PREFIX + code,
+      dir: dir.normalize(),
+      // Lit once any trip there is done.
+      status: list.some((e) => statusOf(e) === 'built') ? 'built' : 'planned',
+      theme: newest.trip.theme,
       phase: i * 1.7,
-      landmark: mainCity(e.trip)?.landmark ?? null,
-    })
+      landmark: list.length === 1 ? (mainCity(newest.trip)?.landmark ?? null) : (COUNTRY_LANDMARK[code] ?? null),
+      count: list.length,
+    }
   })
   const gap = 0.12
   for (let iter = 0; iter < 60; iter++) {
@@ -615,6 +633,12 @@ function MiniIsland({
         </group>
       )}
 
+      {placed.count > 1 && (
+        // How many trips this country's island stands for.
+        <sprite position={[0.045, 0.085, 0]} scale={[0.04, 0.04, 0.04]} raycast={() => null}>
+          <spriteMaterial map={badgeTexture(String(placed.count), '#6e8b69')} depthTest={false} />
+        </sprite>
+      )}
       {built ? (
         <sprite position={[0, 0.03, 0]} scale={[0.28, 0.28, 0.28]} raycast={() => null}>
           <spriteMaterial map={glow} blending={THREE.AdditiveBlending} depthWrite={false} transparent />

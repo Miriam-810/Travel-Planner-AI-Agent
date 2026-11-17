@@ -320,7 +320,11 @@ async function paintVectorTiles(box: GeoBox, painter: Painter, paint: Paint, sig
 
 // --- putting it together -------------------------------------------------------------
 
-export async function loadTerrain(map: TripMap, pal: Palette3D, signal: AbortSignal): Promise<Terrain> {
+/**
+ * @param relief For a whole country the true scale leaves mountains flat: pass a
+ * height (scene units) for the highest point to stand at instead.
+ */
+export async function loadTerrain(map: TripMap, pal: Palette3D, signal: AbortSignal, relief?: number): Promise<Terrain> {
   const longSide = Math.max(map.width, map.depth)
   const cols = Math.round((GRID * map.width) / longSide)
   const rows = Math.round((GRID * map.depth) / longSide)
@@ -365,7 +369,7 @@ export async function loadTerrain(map: TripMap, pal: Palette3D, signal: AbortSig
   // Scene heights: exaggerated so hills read from above, but never taller than MAX_RELIEF.
   let highest = 1
   for (const m of metres) if (m > highest) highest = m
-  const perMetre = Math.min((map.frame.unit / 1000) * EXAGGERATION, MAX_RELIEF / highest)
+  const perMetre = relief ? relief / highest : Math.min((map.frame.unit / 1000) * EXAGGERATION, MAX_RELIEF / highest)
   const heights = new Float32Array(metres.length)
   metres.forEach((m, i) => {
     heights[i] = Number.isNaN(m) ? 0 : LAND_BASE + Math.max(0, m) * perMetre

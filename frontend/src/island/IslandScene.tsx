@@ -8,7 +8,8 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState } from 
 import * as THREE from 'three'
 import type { Trip } from '../types'
 import { monthDay, weekdayZh } from '../lib/format'
-import { citiesOnTrip } from './cities'
+import { statusOf, tripCentre, type SavedTrip } from '../lib/library'
+import { citiesOnTrip, mainCity } from './cities'
 import { badgeTexture } from './labels'
 import { Landmark } from './landmarks'
 import { palette3d, type Palette3D } from './palette3d'
@@ -43,12 +44,12 @@ const GroundCtx = createContext<(x: number, z: number) => number>(() => LAND_TOP
 const useGround = () => useContext(GroundCtx)
 
 /** Fetches the real terrain for the map; null until it arrives, or if it can't be had. */
-function useTerrain(map: TripMap, pal: Palette3D): Terrain | null {
+function useTerrain(map: TripMap, pal: Palette3D, relief?: number): Terrain | null {
   const [terrain, setTerrain] = useState<Terrain | null>(null)
   useEffect(() => {
     const ctrl = new AbortController()
     let loaded: Terrain | null = null
-    loadTerrain(map, pal, ctrl.signal)
+    loadTerrain(map, pal, ctrl.signal, relief)
       .then((t) => {
         loaded = t
         setTerrain(t)
@@ -61,7 +62,7 @@ function useTerrain(map: TripMap, pal: Palette3D): Terrain | null {
       loaded?.texture.dispose()
       setTerrain(null)
     }
-  }, [map, pal])
+  }, [map, pal, relief])
   return terrain
 }
 
@@ -638,19 +639,19 @@ const FLAG_GAP = 2.6
  * in one city) fan out in a ring around it, each with a dotted line back to
  * the real spot, like spread-out pins on a map.
  */
-function flagSpots(map: TripMap): { base: P; flag: P }[] {
+function flagSpots(map: TripMap, gap = FLAG_GAP): { base: P; flag: P }[] {
   // Each flag stands at the day's main group of stops (its first stop could be a station in another town).
   const bases = map.days.map((d) => d.centre)
   const groups: number[][] = []
   bases.forEach((b, i) => {
-    const g = groups.find((g) => Math.hypot(bases[g[0]][0] - b[0], bases[g[0]][1] - b[1]) < FLAG_GAP)
+    const g = groups.find((g) => Math.hypot(bases[g[0]][0] - b[0], bases[g[0]][1] - b[1]) < gap)
     if (g) g.push(i)
     else groups.push([i])
   })
   const out: { base: P; flag: P }[] = bases.map((b) => ({ base: b, flag: b }))
   for (const g of groups) {
     if (g.length === 1) continue
-    const r = Math.max(FLAG_GAP * 0.75, (FLAG_GAP * g.length) / (2 * Math.PI))
+    const r = Math.max(gap * 0.75, (gap * g.length) / (2 * Math.PI))
     g.forEach((day, k) => {
       const a = -Math.PI / 2 + (k / g.length) * Math.PI * 2 // first day at the back, then clockwise
       const [x, z] = bases[g[0]]
@@ -805,4 +806,209 @@ function CameraRig({
   })
 
   return null
+}
+
+// --- one country, every trip in it ------------------------------------------------
+
+/** The second level of the home globe: one country's real map, with a marker for every trip there. */
+export function CountryScene({
+  trips,
+  onOpen,
+  onHover,
+}: {
+  trips: SavedTrip[]
+  onOpen: (id: string) => void
+  onHover: (id: string | null) => void
+}) {
+  const pal = palette3d('sage')
+  const sky = daylight(pal)
+  return (
+    <div className="absolute inset-0" style={{ background: `linear-gradient(180deg, ${sky.top} 0%, ${sky.bottom} 100%)` }}>
+      <Canvas
+        dpr={[1, 2]}
+        camera={{ fov: FOV, near: 0.01, far: 500, position: [0, 30, 30] }}
+        gl={{ alpha: true, antialias: true }}
+        fallback={<p className="absolute inset-x-0 bottom-4 text-center text-[13px] text-ink-soft">這個瀏覽器無法顯示立體地圖。</p>}
+      >
+        <CountryBoard trips={trips} onOpen={onOpen} onHover={onHover} pal={pal} sky={sky} />
+      </Canvas>
+      <p className="pointer-events-none absolute right-3 bottom-1.5 m-0 text-[10px] text-ink-soft/80">
+        地形：国土地理院｜© OpenStreetMap・OpenFreeMap
+      </p>
+    </div>
+  )
+}
+
+function CountryBoard({
+  trips,
+  onOpen,
+  onHover,
+  pal,
+  sky,
+}: {
+  trips: SavedTrip[]
+  onOpen: (id: string) => void
+  onHover: (id: string | null) => void
+  pal: Palette3D
+  sky: Sky
+}) {
+  const { size } = useThree()
+  const aspect = size.width / Math.max(size.height, 1)
+  const viewAspect = Math.round(aspect * 4) / 4
+  const reducedMotion = useMemo(() => prefersReducedMotion(), [])
+  // Each trip becomes one point on the map (its centre), so the trip map's machinery
+  // (coastline, terrain, trees, spread-out flags, camera) draws the whole country.
+  const points = useMemo(
+    () =>
+      trips.flatMap((e) => {
+        const c = tripCentre(e.trip)
+        return c ? [{ entry: e, centre: c }] : []
+      }),
+    [trips],
+  )
+  const map = useMemo(
+    () =>
+      buildTripMap(
+        points.map((p) => ({ stops: [{ lat: p.centre.lat, lng: p.centre.lng }] }) as unknown as Trip['days'][number]),
+        'country',
+        viewAspect,
+        180, // at least 360 km across: enough of the country around even a single trip
+      ),
+    [points, viewAspect],
+  )
+  // A whole country is drawn small: lift the mountains so the Alps and the volcanoes still show.
+  const terrain = useTerrain(map, pal, 4)
+  const ground = useMemo(() => (terrain ? terrain.heightAt : () => LAND_TOP), [terrain])
+  // Trip markers are bigger than day flags: spread them further apart.
+  const spots = useMemo(() => flagSpots(map, 4.6), [map])
+
+  return (
+    <GroundCtx.Provider value={ground}>
+      <Lights sky={sky} reducedMotion={reducedMotion} />
+      <CameraRig map={map} openDay={null} selected={-1} aspect={aspect} reducedMotion={reducedMotion} />
+      {terrain ? <TerrainMesh map={map} terrain={terrain} pal={pal} /> : <MapBase map={map} pal={pal} />}
+      <Trees map={map} pal={pal} seed="country" terrain={terrain} />
+      {points.map(({ entry }, i) => (
+        <TripMarker
+          key={entry.trip.id}
+          entry={entry}
+          base={spots[i].base}
+          at={spots[i].flag}
+          onOpen={onOpen}
+          onHover={onHover}
+          reducedMotion={reducedMotion}
+          index={i}
+        />
+      ))}
+    </GroundCtx.Provider>
+  )
+}
+
+/**
+ * One trip on the country map: its main city's landmark (or a little house),
+ * glowing once the trip is done, see-through with a flag while it is ahead.
+ */
+function TripMarker({
+  entry,
+  base,
+  at,
+  onOpen,
+  onHover,
+  reducedMotion,
+  index,
+}: {
+  entry: SavedTrip
+  base: P
+  at: P
+  onOpen: (id: string) => void
+  onHover: (id: string | null) => void
+  reducedMotion: boolean
+  index: number
+}) {
+  const ground = useGround()
+  const group = useRef<THREE.Group>(null)
+  const pal = palette3d(entry.trip.theme)
+  const built = statusOf(entry) === 'built'
+  const landmark = mainCity(entry.trip)?.landmark
+  const [x, z] = at
+  const y = ground(x, z)
+  const moved = Math.hypot(at[0] - base[0], at[1] - base[1])
+  const leaderDots = Math.floor(moved / 0.3)
+
+  useFrame(({ clock }) => {
+    if (!group.current || reducedMotion) return
+    group.current.position.y = y + 0.15 + Math.sin(clock.elapsedTime * 1.2 + index) * 0.08
+  })
+
+  return (
+    <group>
+      {Array.from({ length: leaderDots }, (_, k) => {
+        const t = (k + 0.5) / leaderDots
+        const px = base[0] + (x - base[0]) * t
+        const pz = base[1] + (z - base[1]) * t
+        return (
+          <mesh key={k} position={[px, ground(px, pz) + 0.03, pz]} raycast={() => null}>
+            <cylinderGeometry args={[0.05, 0.05, 0.04, 6]} />
+            <meshBasicMaterial color={pal.ink} transparent opacity={0.5} />
+          </mesh>
+        )
+      })}
+      <group
+        ref={group}
+        position={[x, y + 0.15, z]}
+        onClick={(e) => {
+          e.stopPropagation()
+          onOpen(entry.trip.id)
+        }}
+        onPointerOver={(e) => {
+          e.stopPropagation()
+          pointer(true)
+          onHover(entry.trip.id)
+        }}
+        onPointerOut={() => {
+          pointer(false)
+          onHover(null)
+        }}
+      >
+        <GroundShadow radius={2} y={-0.13} />
+        <group scale={3.6}>
+          {landmark ? (
+            <Landmark kind={landmark} opacity={built ? 1 : 0.55} />
+          ) : (
+            <group>
+              <mesh position={[0, 0.2, 0]}>
+                <boxGeometry args={[0.5, 0.4, 0.42]} />
+                <meshStandardMaterial color={pal.wall} flatShading transparent opacity={built ? 1 : 0.55} />
+              </mesh>
+              <mesh position={[0, 0.55, 0]} rotation={[0, Math.PI / 4, 0]}>
+                <coneGeometry args={[0.42, 0.32, 4]} />
+                <meshStandardMaterial color={pal.roof} flatShading transparent opacity={built ? 1 : 0.55} />
+              </mesh>
+            </group>
+          )}
+        </group>
+        {built ? (
+          <sprite position={[0, 1.6, 0]} scale={7} raycast={() => null}>
+            <spriteMaterial map={lampGlow()} blending={THREE.AdditiveBlending} transparent opacity={0.6} depthWrite={false} />
+          </sprite>
+        ) : (
+          // Still ahead: a flag planted beside it.
+          <group position={[1.7, 0, 0.2]} scale={1.4}>
+            <mesh position={[0, 1.2, 0]}>
+              <cylinderGeometry args={[0.04, 0.04, 2.4, 5]} />
+              <meshStandardMaterial color={pal.ink} />
+            </mesh>
+            <mesh position={[0.35, 2.15, 0]}>
+              <boxGeometry args={[0.7, 0.42, 0.04]} />
+              <meshStandardMaterial color={pal.accent} emissive={pal.accent} emissiveIntensity={0.3} />
+            </mesh>
+          </group>
+        )}
+        {/* bigger invisible target, easy to tap */}
+        <mesh position={[0, 1, 0]} visible={false}>
+          <sphereGeometry args={[2.2, 8, 8]} />
+        </mesh>
+      </group>
+    </group>
+  )
 }

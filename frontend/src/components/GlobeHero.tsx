@@ -5,6 +5,11 @@ import { palette } from '../lib/themes'
 import { Icon } from './Icon'
 
 const GlobeScene = lazy(() => import('../globe/GlobeScene'))
+const CountryScene = lazy(() => import('../island/IslandScene').then((m) => ({ default: m.CountryScene })))
+
+/** The globe passes up "country:JP" when a country's island is clicked. */
+const COUNTRY_PREFIX = 'country:'
+const COUNTRY_NAME: Record<string, string> = { JP: '日本', TW: '台灣', KR: '韓國' }
 
 const STATUS_TEXT = { planned: '搭建中', built: '已建成' } as const
 
@@ -17,8 +22,13 @@ interface Props {
 /** The globe on the home page, with an island for every trip planned on this device. */
 export function GlobeHero({ trips, onOpen, onRemove }: Props) {
   const [hovered, setHovered] = useState<string | null>(null)
+  // Clicking a country's island on the globe opens that country's map (second level).
+  const [country, setCountry] = useState<string | null>(null)
   const hoveredEntry = trips.find((e) => e.trip.id === hovered)
   const hoveredTrip = hoveredEntry?.trip
+  const hoveredCountry = hovered?.startsWith(COUNTRY_PREFIX) ? hovered.slice(COUNTRY_PREFIX.length) : null
+  const countryTrips = country ? trips.filter((e) => e.trip.country === country) : []
+  const tripsIn = (code: string) => trips.filter((e) => e.trip.country === code)
 
   return (
     // Wider than the form on large screens: the globe is the page's centrepiece.
@@ -27,19 +37,53 @@ export function GlobeHero({ trips, onOpen, onRemove }: Props) {
         <Suspense
           fallback={<p className="absolute inset-0 m-0 grid place-items-center text-[13px] text-white/50">地球載入中…</p>}
         >
-          <GlobeScene trips={trips} onOpen={onOpen} onHover={setHovered} />
+          {country && countryTrips.length > 0 ? (
+            <CountryScene trips={countryTrips} onOpen={onOpen} onHover={setHovered} />
+          ) : (
+            <GlobeScene
+              trips={trips}
+              onOpen={(id) => (id.startsWith(COUNTRY_PREFIX) ? setCountry(id.slice(COUNTRY_PREFIX.length)) : onOpen(id))}
+              onHover={setHovered}
+            />
+          )}
         </Suspense>
 
-        <p className="pointer-events-none absolute inset-x-0 bottom-4 m-0 px-4 text-center text-[13.5px] text-white/70">
-          {hoveredTrip ? (
+        {country && (
+          <div className="absolute top-3 left-3 z-10 flex items-center gap-2 sm:top-4 sm:left-4">
+            <button
+              type="button"
+              onClick={() => {
+                setCountry(null)
+                setHovered(null)
+              }}
+              className="rounded-full border-0 bg-cream/95 px-4 py-2 text-[14px] text-ink shadow-[var(--shadow-soft)] hover:text-sage-deep"
+            >
+              ← 回到地球
+            </button>
+            <span className="rounded-full bg-cream/95 px-3 py-1.5 text-[13px] text-ink-soft shadow-[var(--shadow-soft)]">
+              {COUNTRY_NAME[country] ?? country}・{countryTrips.length} 趟
+            </span>
+          </div>
+        )}
+
+        <p
+          className={`pointer-events-none absolute inset-x-0 bottom-4 m-0 px-4 text-center text-[13.5px] ${
+            country ? 'text-ink' : 'text-white/70'
+          }`}
+        >
+          {hoveredCountry ? (
             <>
-              <span className="text-white">{hoveredTrip.destination}</span>・{monthDay(hoveredTrip.start_date)}–{monthDay(hoveredTrip.end_date)}・
+              <span className="text-white">{COUNTRY_NAME[hoveredCountry] ?? hoveredCountry}</span>・{tripsIn(hoveredCountry).length} 趟行程・點一下看地圖
+            </>
+          ) : hoveredTrip ? (
+            <>
+              <span className={country ? 'text-sage-deep' : 'text-white'}>{hoveredTrip.destination}</span>・{monthDay(hoveredTrip.start_date)}–{monthDay(hoveredTrip.end_date)}・
               {STATUS_TEXT[statusOf(hoveredEntry!)]}
             </>
           ) : trips.length === 0 ? (
             '完成第一趟規劃，地球上就會長出第一座小島'
           ) : (
-            '拖曳轉動地球，點小島打開行程'
+            country ? '點小島打開行程' : '拖曳轉動地球，點國家的小島看地圖'
           )}
         </p>
       </div>

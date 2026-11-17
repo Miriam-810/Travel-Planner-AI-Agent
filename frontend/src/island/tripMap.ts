@@ -152,7 +152,7 @@ function relax(home: P[], gap: number, seed: string): P[] {
  * @param aspect width / height of the view, so the map can widen (or deepen)
  * to fill it with more of the real surroundings.
  */
-export function buildTripMap(days: Day[], seed: string, aspect = 1.6): TripMap {
+export function buildTripMap(days: Day[], seed: string, aspect = 1.6, minHalfKm = 3): TripMap {
   const all = days.flatMap((d) => d.stops)
   const lats = all.map((s) => s.lat)
   const lngs = all.map((s) => s.lng)
@@ -160,9 +160,9 @@ export function buildTripMap(days: Day[], seed: string, aspect = 1.6): TripMap {
   const lng0 = (Math.min(...lngs) + Math.max(...lngs)) / 2
   const k = Math.cos((lat0 * Math.PI) / 180)
 
-  // The trip's own extent (km, at least 6 km across) sets the scale.
-  const tripX = Math.max(((Math.max(...lngs) - Math.min(...lngs)) / 2) * k * KM_PER_DEG, 3)
-  const tripZ = Math.max(((Math.max(...lats) - Math.min(...lats)) / 2) * KM_PER_DEG, 3)
+  // The trip's own extent (km, at least minHalfKm each way) sets the scale.
+  const tripX = Math.max(((Math.max(...lngs) - Math.min(...lngs)) / 2) * k * KM_PER_DEG, minHalfKm)
+  const tripZ = Math.max(((Math.max(...lats) - Math.min(...lats)) / 2) * KM_PER_DEG, minHalfKm)
   const unit = TRIP_SIZE / (2 * Math.max(tripX, tripZ)) // scene units per km
 
   // The map reaches well past the trip, and past the edges of the view.
