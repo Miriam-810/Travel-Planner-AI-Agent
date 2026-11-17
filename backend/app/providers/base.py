@@ -128,6 +128,7 @@ class Country:
     local_language: str  # for the prompt: stop names are '<中文說明>｜<local name>'
     name_examples: tuple[str, ...]  # e.g. '海鮮丼市場｜青森魚菜センター'
     holiday_season: Callable[[date], str | None]  # periods when shops change hours
+    centre: tuple[float, float] = (0.0, 0.0)  # lat, lng to bias country-wide searches (hotels)
 
     def today(self) -> date:
         return datetime.now(self.timezone).date()

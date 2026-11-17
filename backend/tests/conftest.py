@@ -64,11 +64,11 @@ class FakeOpenMeteo:
         return httpx2.AsyncClient(transport=httpx2.MockTransport(self.handler))
 
 
-def make_limiter(tmp_path, *, per_code=3, per_site=20, trips=(10, 50), revise=(2, 100)) -> UsageLimiter:
+def make_limiter(tmp_path, *, per_code=3, per_site=20, trips=(10, 50), revise=(2, 100), hotels=(2, 100)) -> UsageLimiter:
     return UsageLimiter(
         tmp_path / "usage.sqlite",
         {"test-code", "other-code"},
-        {"outline": (per_code, per_site), "trips": trips, "revise": revise},
+        {"outline": (per_code, per_site), "trips": trips, "revise": revise, "hotels": hotels},
     )
 
 

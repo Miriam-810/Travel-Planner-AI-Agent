@@ -54,6 +54,10 @@ class LodgingInput(BaseModel):
     name: str = Field(min_length=1, max_length=100)
     check_in: date
     check_out: date
+    # Where it is, when the traveller picked it from a search (POST /api/hotels).
+    place_id: str | None = Field(None, pattern=PLACE_ID_PATTERN)
+    lat: float | None = Field(None, ge=-90, le=90)
+    lng: float | None = Field(None, ge=-180, le=180)
 
     @model_validator(mode="after")
     def check_dates(self) -> Self:

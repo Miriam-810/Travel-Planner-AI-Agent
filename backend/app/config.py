@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     # POST /api/outline/revise: chat edits to an outline (Claude + a few searches).
     daily_revise_per_code: int = 15
     daily_revise_site: int = 100
+    # POST /api/hotels: one Places text search per call.
+    daily_hotels_per_code: int = 30
+    daily_hotels_site: int = 300
     usage_db_path: str = "usage.sqlite"
 
     # Server-side key for Google Places API (New). Empty → POST /api/trips only

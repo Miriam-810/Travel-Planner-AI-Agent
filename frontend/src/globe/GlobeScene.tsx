@@ -20,8 +20,13 @@ export interface GlobeProps {
   onHover: (id: string | null) => void
 }
 
-const JAPAN = { lat: 36, lng: 138 }
+/** Where the travellers live: the globe draws flight paths from here to every trip. */
+const HOME = { lat: 25.04, lng: 121.53 } // Taipei
+/** With no trips yet, look at Taiwan and Japan. */
+const EAST_ASIA = { lat: 31, lng: 130 }
+/** The whole globe in view; closer once there are trips to look at. */
 const CAMERA_DISTANCE = 4
+const CAMERA_DISTANCE_TRIPS = 3.15
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -34,8 +39,14 @@ function toVector(lat: number, lng: number): THREE.Vector3 {
 }
 
 export default function GlobeScene(props: GlobeProps) {
-  const latest = props.trips.map((e) => tripCentre(e.trip)).find(Boolean) ?? JAPAN
-  const start = toVector(latest.lat, latest.lng).multiplyScalar(CAMERA_DISTANCE)
+  // Start looking at home and the trips together (East Asia), a little from the north.
+  const centres = props.trips.map((e) => tripCentre(e.trip)).filter((c): c is { lat: number; lng: number } => c !== null)
+  const focus = (centres.length ? [HOME, ...centres] : [EAST_ASIA])
+    .reduce((v, c) => v.add(toVector(c.lat, c.lng)), new THREE.Vector3())
+    .normalize()
+  focus.y += 0.12
+  const distance = centres.length ? CAMERA_DISTANCE_TRIPS : CAMERA_DISTANCE
+  const start = focus.normalize().multiplyScalar(distance)
   return (
     <Canvas
       dpr={[1, 2]}
@@ -43,12 +54,12 @@ export default function GlobeScene(props: GlobeProps) {
       gl={{ alpha: true, antialias: true }}
       fallback={<p className="absolute inset-x-0 bottom-4 text-center text-[13px] text-white/60">這個瀏覽器無法顯示地球。</p>}
     >
-      <Scene {...props} />
+      <Scene {...props} distance={distance} />
     </Canvas>
   )
 }
 
-function Scene({ trips, onOpen, onHover }: GlobeProps) {
+function Scene({ trips, onOpen, onHover, distance }: GlobeProps & { distance: number }) {
   const reducedMotion = useMemo(() => prefersReducedMotion(), [])
   const light = useRef<THREE.DirectionalLight>(null)
   const { camera } = useThree()
@@ -66,7 +77,7 @@ function Scene({ trips, onOpen, onHover }: GlobeProps) {
       <ambientLight intensity={0.12} color="#8ea6e6" />
       <hemisphereLight args={['#9fb8e8', '#0c1222', 0.15]} />
       <directionalLight ref={light} intensity={1.5} color="#ffe9c8" />
-      <Controls reducedMotion={reducedMotion} />
+      <Controls reducedMotion={reducedMotion} distance={distance} slow={trips.length > 0} />
       <Earth />
       <Clouds reducedMotion={reducedMotion} />
       <Atmosphere />
@@ -76,15 +87,15 @@ function Scene({ trips, onOpen, onHover }: GlobeProps) {
   )
 }
 
-function Controls({ reducedMotion }: { reducedMotion: boolean }) {
+function Controls({ reducedMotion, distance, slow }: { reducedMotion: boolean; distance: number; slow: boolean }) {
   const { camera, gl, size } = useThree()
   const ref = useRef<OrbitControls | null>(null)
 
   // Back off on narrow screens so the whole globe (and its glow) fits across.
   useEffect(() => {
     const aspect = size.width / Math.max(size.height, 1)
-    camera.position.setLength(CAMERA_DISTANCE * Math.max(1, 1 / aspect))
-  }, [camera, size])
+    camera.position.setLength(distance * Math.max(1, 1 / aspect))
+  }, [camera, size, distance])
 
   useEffect(() => {
     const controls = new OrbitControls(camera, gl.domElement)
@@ -97,7 +108,8 @@ function Controls({ reducedMotion }: { reducedMotion: boolean }) {
     controls.maxDistance = 7
     controls.zoomSpeed = 0.6
     controls.autoRotate = !reducedMotion
-    controls.autoRotateSpeed = 0.35
+    // With trips to look at, turn slowly so they stay in view a while.
+    controls.autoRotateSpeed = slow ? 0.12 : 0.35
     // Stop turning while someone is exploring; pick up again a little later.
     let timer = 0
     const pause = () => {
@@ -117,7 +129,7 @@ function Controls({ reducedMotion }: { reducedMotion: boolean }) {
       controls.dispose()
       ref.current = null
     }
-  }, [camera, gl, reducedMotion])
+  }, [camera, gl, reducedMotion, slow])
 
   useFrame(() => ref.current?.update())
   return null
@@ -394,12 +406,114 @@ function place(trips: SavedTrip[]): Placed[] {
 
 function TripIslands({ trips, onOpen, onHover, reducedMotion }: GlobeProps & { reducedMotion: boolean }) {
   const placed = useMemo(() => place(trips), [trips])
+  const home = useMemo(() => toVector(HOME.lat, HOME.lng), [])
   return (
     <>
+      <Home dir={home} reducedMotion={reducedMotion} />
+      {placed.map((p) => (
+        <FlightArc key={`arc-${p.id}`} from={home} to={p.dir} built={p.status === 'built'} phase={p.phase} reducedMotion={reducedMotion} />
+      ))}
       {placed.map((p) => (
         <MiniIsland key={p.id} placed={p} onOpen={onOpen} onHover={onHover} reducedMotion={reducedMotion} />
       ))}
     </>
+  )
+}
+
+/** Home: a small house with a soft ring around it, where every flight path starts. */
+function Home({ dir, reducedMotion }: { dir: THREE.Vector3; reducedMotion: boolean }) {
+  const ring = useRef<THREE.Mesh>(null)
+  const quaternion = useMemo(() => new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir), [dir])
+  useFrame(({ clock }) => {
+    if (!ring.current || reducedMotion) return
+    const t = (clock.elapsedTime * 0.5) % 1
+    ring.current.scale.setScalar(0.6 + t * 1.2)
+    ;(ring.current.material as THREE.MeshBasicMaterial).opacity = 0.7 * (1 - t)
+  })
+  return (
+    <group position={dir.clone().multiplyScalar(1.02)} quaternion={quaternion} raycast={() => null}>
+      <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.002, 0]}>
+        <ringGeometry args={[0.05, 0.058, 32]} />
+        <meshBasicMaterial color="#cdeea0" transparent opacity={0.6} depthWrite={false} />
+      </mesh>
+      <mesh position={[0, 0.012, 0]}>
+        <boxGeometry args={[0.03, 0.024, 0.026]} />
+        <meshStandardMaterial color="#f4ead6" flatShading />
+      </mesh>
+      <mesh position={[0, 0.033, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <coneGeometry args={[0.026, 0.02, 4]} />
+        <meshStandardMaterial color="#6e8b69" flatShading emissive="#6e8b69" emissiveIntensity={0.3} />
+      </mesh>
+    </group>
+  )
+}
+
+/**
+ * A flight path from home to a trip, arching over the globe. Built trips get
+ * a warm gold line with a little plane flying along it; trips still ahead a
+ * faint dotted line.
+ */
+function FlightArc({
+  from,
+  to,
+  built,
+  phase,
+  reducedMotion,
+}: {
+  from: THREE.Vector3
+  to: THREE.Vector3
+  built: boolean
+  phase: number
+  reducedMotion: boolean
+}) {
+  const plane = useRef<THREE.Group>(null)
+  const curve = useMemo(() => {
+    const angle = from.angleTo(to)
+    const lift = 0.09 + angle * 0.6
+    const points = Array.from({ length: 49 }, (_, i) => {
+      const t = i / 48
+      const dir = from.clone().lerp(to, t).normalize() // close enough to a great circle at these distances
+      return dir.multiplyScalar(1.02 + lift * Math.sin(Math.PI * t) + (1.06 - 1.02) * t)
+    })
+    return new THREE.CatmullRomCurve3(points)
+  }, [from, to])
+  const tube = useMemo(() => new THREE.TubeGeometry(curve, 48, 0.005, 5, false), [curve])
+  const dots = useMemo(() => curve.getSpacedPoints(26).slice(1, -1), [curve])
+  useEffect(() => () => tube.dispose(), [tube])
+
+  useFrame(({ clock }) => {
+    if (!plane.current) return
+    const t = reducedMotion ? 0.5 : (clock.elapsedTime * 0.12 + phase) % 1
+    const p = curve.getPointAt(t)
+    plane.current.position.copy(p)
+    plane.current.lookAt(curve.getPointAt(Math.min(1, t + 0.01)))
+  })
+
+  if (!built) {
+    return (
+      <group raycast={() => null}>
+        {dots.map((d, i) => (
+          <mesh key={i} position={d}>
+            <sphereGeometry args={[0.0055, 6, 4]} />
+            <meshBasicMaterial color="#ffffff" transparent opacity={0.6} />
+          </mesh>
+        ))}
+      </group>
+    )
+  }
+  return (
+    <group raycast={() => null}>
+      <mesh geometry={tube}>
+        <meshBasicMaterial color="#f3c36b" transparent opacity={0.85} />
+      </mesh>
+      <group ref={plane}>
+        {/* lookAt points +z along the path; the cone's tip points +y, so turn it */}
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+          <coneGeometry args={[0.012, 0.035, 4]} />
+          <meshBasicMaterial color="#ffffff" />
+        </mesh>
+      </group>
+    </group>
   )
 }
 
@@ -450,7 +564,7 @@ function MiniIsland({
     <group
       ref={group}
       quaternion={quaternion}
-      scale={1.8}
+      scale={1.6}
       onClick={(e: ThreeEvent<MouseEvent>) => {
         if (e.delta > 6) return // that was a drag to spin the globe
         e.stopPropagation()

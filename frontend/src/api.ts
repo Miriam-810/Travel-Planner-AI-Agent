@@ -1,4 +1,4 @@
-import type { ChatTurn, OutlineResponse, Trip, TripOutline, TripRequest } from './types'
+import type { ChatTurn, HotelResult, OutlineResponse, Trip, TripOutline, TripRequest } from './types'
 
 /** An error whose message is ready to show to the user, in Chinese. */
 export class ApiError extends Error {
@@ -54,6 +54,11 @@ export function fetchSampleTrip(signal?: AbortSignal): Promise<Trip> {
 
 export function checkInvite(inviteCode: string, signal?: AbortSignal): Promise<{ remaining_today: number }> {
   return request('/api/invite', { inviteCode, signal })
+}
+
+/** Find a booked hotel by name (one search; it has its own daily limit). */
+export function searchHotels(q: string, destination: string, inviteCode: string, signal?: AbortSignal): Promise<HotelResult[]> {
+  return request('/api/hotels', { method: 'POST', body: JSON.stringify({ q, destination }), inviteCode, signal })
 }
 
 export function createOutline(trip: TripRequest, inviteCode: string, signal?: AbortSignal): Promise<OutlineResponse> {

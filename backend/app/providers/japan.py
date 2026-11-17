@@ -28,6 +28,7 @@ JAPAN = Country(
     local_language="Japanese",
     name_examples=("海鮮丼市場｜青森魚菜センター", "繩文遺跡｜三内丸山遺跡", "精釀啤酒餐廳｜浅虫ビール"),
     holiday_season=holiday_season,
+    centre=(36.2, 138.2),
 )
 
 

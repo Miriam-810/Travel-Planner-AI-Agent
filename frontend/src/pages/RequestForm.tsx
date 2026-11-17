@@ -13,6 +13,7 @@ import {
   inputCls,
 } from '../components/Form'
 import { DateField, RangeCalendar } from '../components/Calendar'
+import { HotelSearch } from '../components/HotelSearch'
 import { Icon } from '../components/Icon'
 import { addDays, longDate } from '../lib/dates'
 import { IslandMark } from '../components/IslandMark'
@@ -131,6 +132,26 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
   }
 
   const steps: Step[] = [
+    {
+      title: '先輸入邀請碼',
+      subtitle: '規劃行程和搜尋飯店都需要邀請碼，請向網站作者索取。這台裝置會記住它。',
+      check: () => (inviteCode.trim() ? null : '請填邀請碼'),
+      body: (
+        <Field label="邀請碼" htmlFor="invite" hint={quota} error={inviteError}>
+          <IconInput
+            icon="key"
+            id="invite"
+            autoFocus
+            value={inviteCode}
+            autoComplete="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            onChange={(e) => onInviteChange(e.target.value)}
+            onBlur={lookUpQuota}
+          />
+        </Field>
+      ),
+    },
     {
       title: '這次想去日本哪裡？',
       subtitle: '城市、地區都可以，例如：青森・函館、京都、北海道道東',
@@ -342,15 +363,17 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
         <div className="flex flex-col gap-3">
           {draft.lodgings.map((l, i) => (
             <div key={i} className="flex flex-col gap-2 rounded-3xl bg-sage-soft/70 p-3">
-              <div className="flex gap-2">
+              <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
-                  <IconInput
-                    icon="bed"
-                    aria-label={`住宿 ${i + 1} 名稱`}
-                    value={l.name}
-                    maxLength={100}
-                    placeholder="飯店名稱"
-                    onChange={(e) => setLodging(i, { name: e.target.value })}
+                  <HotelSearch
+                    index={i}
+                    name={l.name}
+                    pickedAddress={l.place_id ? (l.address ?? '') : null}
+                    destination={draft.destination}
+                    inviteCode={inviteCode}
+                    // Typing again means it may be a different hotel: forget the old place.
+                    onType={(name) => setLodging(i, { name, place_id: null, lat: null, lng: null, address: null })}
+                    onPick={(h) => setLodging(i, { name: h.name, place_id: h.place_id, lat: h.lat, lng: h.lng, address: h.address })}
                   />
                 </div>
                 <button
@@ -412,26 +435,10 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
       ),
     },
     {
-      title: '最後，輸入邀請碼',
-      subtitle: '產生行程需要邀請碼，請向網站作者索取。這台裝置會記住它。',
-      check: () => (inviteCode.trim() ? null : '請填邀請碼'),
-      body: (
-        <div className="flex flex-col gap-4">
-          <Field label="邀請碼" htmlFor="invite" hint={quota} error={inviteError}>
-            <IconInput
-              icon="key"
-              id="invite"
-              value={inviteCode}
-              autoComplete="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              onChange={(e) => onInviteChange(e.target.value)}
-              onBlur={lookUpQuota}
-            />
-          </Field>
-          <Summary draft={draft} days={days} />
-        </div>
-      ),
+      title: '最後確認一下',
+      subtitle: '沒問題的話就開始規劃，大約需要 1–2 分鐘',
+      check: () => null,
+      body: <Summary draft={draft} days={days} />,
     },
   ]
 
@@ -440,11 +447,22 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
   const [step, setStep] = useState(error ? last : 0)
   const current = steps[step]
 
-  const next = (ev?: FormEvent) => {
+  const next = async (ev?: FormEvent) => {
     ev?.preventDefault()
     const problem = current.check()
     setStepError(problem)
     if (problem) return
+    if (step === 0) {
+      // Check the code with the server before going on: everything after needs it.
+      try {
+        const { remaining_today } = await checkInvite(inviteCode.trim())
+        setQuota(remaining_today > 0 ? `今天還能產生 ${remaining_today} 份行程` : '這個邀請碼今天的額度用完了')
+        setInviteError(null)
+      } catch (err) {
+        setInviteError(err instanceof ApiError ? err.message : '無法確認邀請碼')
+        return
+      }
+    }
     if (step < last) {
       setStep(step + 1)
       return
@@ -534,9 +552,10 @@ export function RequestForm({ draft, onDraftChange, inviteCode, onInviteChange, 
 }
 
 function isEmptyStep(step: number, d: FormDraft): boolean {
-  if (step === 2) return !d.arrival_time && !d.departure_time
-  if (step === 4) return !d.pace && d.preferences.length === 0
-  if (step === 5) return d.lodgings.length === 0
+  // Step numbers: 0 invite, 1 destination, 2 dates, 3 flights, 4 travellers, 5 style, 6 hotels, 7 confirm.
+  if (step === 3) return !d.arrival_time && !d.departure_time
+  if (step === 5) return !d.pace && d.preferences.length === 0
+  if (step === 6) return d.lodgings.length === 0
   return false
 }
 

@@ -83,6 +83,7 @@ def get_limiter() -> UsageLimiter:
             "outline": (settings.daily_limit_per_code, settings.daily_limit_site),
             "trips": (settings.daily_trips_per_code, settings.daily_trips_site),
             "revise": (settings.daily_revise_per_code, settings.daily_revise_site),
+            "hotels": (settings.daily_hotels_per_code, settings.daily_hotels_site),
         },
     )
 
@@ -181,7 +182,7 @@ def _reserve(limiter: UsageLimiter, code: str, day: date, kind: str) -> None:
     try:
         limiter.reserve(code, day, kind)
     except DailyLimitReached as exc:
-        what = "修改次數" if kind == "revise" else "額度"
+        what = {"revise": "修改次數", "hotels": "飯店搜尋次數"}.get(kind, "額度")
         detail = f"今天整個網站的{what}用完了" if exc.scope == "site" else f"這個邀請碼今天的{what}用完了"
         raise HTTPException(status_code=429, detail=detail) from exc
 
@@ -272,6 +273,51 @@ async def _run_counted(
             places_usd=s.places_usd,
         ),
     )
+
+
+class HotelResult(BaseModel):
+    place_id: str
+    name: str
+    address: str
+    lat: float
+    lng: float
+
+
+MAX_HOTEL_RESULTS = 6
+
+
+class HotelSearch(BaseModel):
+    q: str
+    destination: str = ""
+    country: str = "JP"
+
+
+@app.post("/api/hotels")
+async def search_hotels(
+    body: HotelSearch,
+    code: Annotated[str, Depends(require_invite_code)],
+    limiter: Annotated[UsageLimiter, Depends(get_limiter)],
+    registry: Annotated[ProviderRegistry, Depends(get_registry)],
+) -> list[HotelResult]:
+    """Find a booked hotel by name, so the plan knows where each day ends.
+    One Places text search per call, with its own daily limit. (POST, so hotel
+    names stay out of URLs and logs.)"""
+    q, destination, country = body.q.strip()[:100], body.destination.strip()[:50], body.country
+    if len(q) < 2:
+        raise HTTPException(status_code=422, detail="請輸入至少兩個字的飯店名稱")
+    providers = providers_for(registry, country)
+    day = today_in_japan()
+    _reserve(limiter, code, day, "hotels")
+    lat, lng = providers.country.centre
+    try:
+        found = await providers.places.search(f"{q} {destination}".strip(), lat, lng, radius_m=50_000)
+    except PlacesError as exc:
+        limiter.release(code, day, "hotels")
+        raise HTTPException(status_code=502, detail="搜尋暫時無法使用，可以先直接填飯店名稱") from exc
+    return [
+        HotelResult(place_id=p.place_id, name=p.name, address=p.address, lat=p.lat, lng=p.lng)
+        for p in found[:MAX_HOTEL_RESULTS]
+    ]
 
 
 @app.post("/api/trips")

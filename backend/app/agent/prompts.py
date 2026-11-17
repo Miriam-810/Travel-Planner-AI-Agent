@@ -13,9 +13,9 @@ from app.agent.validate import (
     is_full_day,
     required_meals,
 )
-from app.models import Revision, TripRequest
+from app.models import LodgingInput, Revision, TripRequest
 from app.providers.base import Country
-from app.trip_builder import lodging_for_night
+from app.trip_builder import lodging_input_for_night
 
 # The agent's budget, sized for the longest trip (10 days: ~10 weather calls and ~50 searches).
 MAX_TURNS = 16
@@ -54,6 +54,15 @@ Good plans:
 """
 
 
+def _hotel(lodging: LodgingInput | None) -> dict | str | None:
+    """The night's hotel: its name, and where it is when the traveller picked it from a search."""
+    if lodging is None:
+        return None
+    if lodging.lat is None or lodging.lng is None:
+        return lodging.name
+    return {"name": lodging.name, "lat": lodging.lat, "lng": lodging.lng}
+
+
 def _day_plan(request: TripRequest) -> list[dict]:
     days = (request.end_date - request.start_date).days + 1
     plan = []
@@ -64,7 +73,7 @@ def _day_plan(request: TripRequest) -> list[dict]:
             "date": d.isoformat(),
             "full_day": is_full_day(d, request),
             "meals_needed": meals,
-            "hotel_tonight": lodging_for_night(d, request.lodgings),
+            "hotel_tonight": _hotel(lodging_input_for_night(d, request.lodgings)),
         })
     return plan
 

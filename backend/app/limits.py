@@ -6,6 +6,7 @@ for the whole site per day:
 - "outline": POST /api/outline (Claude + Places searches, the expensive one)
 - "trips":   POST /api/trips (Places details for every stop of a confirmed outline)
 - "revise":  POST /api/outline/revise (a chat edit: Claude and a few searches)
+- "hotels":  POST /api/hotels (one Places text search, while filling in the form)
 
 Days follow Japan time, so the limits reset at midnight JST.
 A slot is given back if the run fails, so errors on our side don't use up

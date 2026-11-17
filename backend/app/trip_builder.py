@@ -103,7 +103,12 @@ def day_warnings(day: date, stops: list[Stop], country: Country, today: date) ->
 
 
 def lodging_for_night(night: date, lodgings: list[LodgingInput]) -> str | None:
+    lodging = lodging_input_for_night(night, lodgings)
+    return lodging.name if lodging else None
+
+
+def lodging_input_for_night(night: date, lodgings: list[LodgingInput]) -> LodgingInput | None:
     for lodging in lodgings:
         if lodging.check_in <= night < lodging.check_out:
-            return lodging.name
+            return lodging
     return None

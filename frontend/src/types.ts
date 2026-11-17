@@ -75,6 +75,20 @@ export interface LodgingInput {
   name: string
   check_in: string
   check_out: string
+  /** Set when picked from a hotel search, so the plan knows where each day ends. */
+  place_id?: string | null
+  lat?: number | null
+  lng?: number | null
+  /** Shown in the form only, to confirm the pick (the API ignores it). */
+  address?: string | null
+}
+
+export interface HotelResult {
+  place_id: string
+  name: string
+  address: string
+  lat: number
+  lng: number
 }
 
 export interface TripRequest {
