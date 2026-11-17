@@ -192,6 +192,7 @@ function Scene({ trip, openDay, selectedStopId, onPickDay, onPickStop, pal, sky 
                     }}
                     onPointerOut={() => pointer(false)}
                   >
+                    <GroundShadow radius={0.45} y={0.005} />
                     <ScenePiece
                       kind={kind}
                       pal={pal}
@@ -278,7 +279,7 @@ function TerrainMesh({ map, terrain, pal }: { map: TripMap; terrain: Terrain; pa
         <boxGeometry args={[map.width, SLAB, map.depth]} />
         <meshStandardMaterial color={pal.rock} flatShading />
       </mesh>
-      <mesh geometry={geometry}>
+      <mesh geometry={geometry} renderOrder={-2}>
         <meshStandardMaterial map={terrain.texture} flatShading roughness={0.95} />
       </mesh>
     </group>
@@ -325,16 +326,22 @@ function DayDetail({ map, day, at, pal }: { map: TripMap; day: number; at: P; pa
     plane.rotateX(-Math.PI / 2)
     plane.translate(detail.x0 + detail.width / 2, 0, detail.z0 + detail.depth / 2)
     const pos = plane.getAttribute('position')
-    for (let i = 0; i < pos.count; i++) pos.setY(i, ground(pos.getX(i), pos.getZ(i)) + 0.004)
+    // Lift it clear of the terrain: the terrain's flat triangles can bulge above a surface that
+    // follows the smooth height curve, and would show the coarse map through in pale patches.
+    const lift = layout.piece * 0.06
+    for (let i = 0; i < pos.count; i++) pos.setY(i, ground(pos.getX(i), pos.getZ(i)) + lift)
     plane.computeVertexNormals()
     return plane
-  }, [detail, ground])
+  }, [detail, ground, layout.piece])
   useEffect(() => () => geometry?.dispose(), [geometry])
 
   if (!detail || !geometry) return null
   return (
-    <mesh geometry={geometry} raycast={() => null}>
-      <meshStandardMaterial map={detail.texture} roughness={0.95} polygonOffset polygonOffsetFactor={-2} />
+    // Drawn right after the terrain and over it whatever the depth: where the terrain's flat
+    // triangles bulge above this smooth sheet, the coarse map must not show through.
+    // Scenes, pins and trails are drawn after it, so they stay on top.
+    <mesh geometry={geometry} raycast={() => null} renderOrder={-1}>
+      <meshStandardMaterial map={detail.texture} roughness={0.95} depthTest={false} />
     </mesh>
   )
 }
@@ -373,6 +380,33 @@ function Lights({ sky, reducedMotion }: { sky: Sky; reducedMotion: boolean }) {
       <directionalLight ref={sun} position={target.sunPos} intensity={sky.sunIntensity} color={sky.sunColour} />
       <ambientLight ref={fill} intensity={sky.ambient} />
     </>
+  )
+}
+
+let shadowTexture: THREE.Texture | null = null
+function shadowBlob(): THREE.Texture {
+  if (shadowTexture) return shadowTexture
+  const size = 64
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')!
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
+  g.addColorStop(0, 'rgba(20,24,34,0.55)')
+  g.addColorStop(0.6, 'rgba(20,24,34,0.25)')
+  g.addColorStop(1, 'rgba(20,24,34,0)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, size, size)
+  shadowTexture = new THREE.CanvasTexture(canvas)
+  return shadowTexture
+}
+
+/** A soft dark patch on the ground under a model, so white walls stand out from snow. */
+function GroundShadow({ radius, y = 0.01 }: { radius: number; y?: number }) {
+  return (
+    <mesh position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null} renderOrder={1}>
+      <planeGeometry args={[radius * 2, radius * 2]} />
+      <meshBasicMaterial map={shadowBlob()} transparent depthWrite={false} />
+    </mesh>
   )
 }
 
@@ -504,6 +538,7 @@ function Landmarks({ trip, map }: { trip: Trip; map: TripMap }) {
     <group>
       {placed.map(({ city, at: [x, z] }) => (
         <group key={city.name} position={[x, ground(x, z), z]} scale={4.2 * (city.size ?? 1)} raycast={() => null}>
+          <GroundShadow radius={0.75} />
           <Landmark kind={city.landmark} />
         </group>
       ))}
@@ -720,7 +755,7 @@ function CameraRig({
   aspect: number
   reducedMotion: boolean
 }) {
-  const { camera } = useThree()
+  const { camera, size } = useThree()
   const lookAt = useRef(new THREE.Vector3())
 
   const goal = useMemo(() => {
@@ -731,19 +766,26 @@ function CameraRig({
     // Zoomed into a day: centre on the selected stop if there is one (it may lie outside the main group).
     const [cx, cz] = day ? (day.stops[selected] ?? day.centre) : map.centre
     // Margin around the stops: a scene and a half for a day, room for the flags overall.
-    const pad = day ? day.piece * 1.6 : 4
+    const pad = day ? day.piece * 1.6 : 2.5
     const hx = (day ? day.half[0] : map.half[0]) + pad
     const hz = (day ? day.half[1] : map.half[1]) + pad
     const width = hx * 2
+    // Flags stand about 4 units tall over the overview; a day's scenes about one scene.
     const depth = hz * 2 * Math.sin(tilt) + (day ? day.piece : 4.5) * Math.cos(tilt)
-    // Overview: extra room for the tall flags and the title card over the top of the map.
-    const dist = Math.max(width / (2 * Math.tan(hfov / 2)), depth / (2 * Math.tan(vfov / 2))) * (day ? 1 : 1.18)
-    // Aim a little north of the middle so the stops sit lower, clear of the title card.
-    // (On phones the title card takes more of the width, so more so.)
-    const target = new THREE.Vector3(cx, LAND_TOP, cz - hz * (day ? 0.1 : aspect < 1 ? 0.22 : 0.12))
+
+    // The title card (top) and the island/map switch (bottom) cover strips of the view:
+    // fit everything into the clear band between them, and centre it there.
+    const topInset = Math.min(110, size.height * 0.24)
+    const bottomInset = Math.min(64, size.height * 0.15)
+    const clear = Math.max(0.4, (size.height - topInset - bottomInset) / size.height)
+    const dist = Math.max(width / (2 * Math.tan(hfov / 2)), depth / (2 * Math.tan(vfov / 2) * clear))
+    // Shift the aim so the clear band's middle, not the canvas middle, lands on the stops.
+    const viewHeight = 2 * dist * Math.tan(vfov / 2)
+    const shift = (((topInset - bottomInset) / 2) / size.height) * viewHeight
+    const target = new THREE.Vector3(cx, LAND_TOP, cz - shift / Math.sin(tilt))
     const pos = target.clone().add(new THREE.Vector3(0, Math.sin(tilt) * dist, Math.cos(tilt) * dist))
     return { pos, target, dist }
-  }, [map, openDay, selected, aspect])
+  }, [map, openDay, selected, aspect, size.height])
 
 
 

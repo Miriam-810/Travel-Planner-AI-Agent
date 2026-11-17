@@ -148,19 +148,22 @@ function mix(a: string, b: string, t: number): string {
 }
 
 function paintFor(pal: Palette3D): Paint {
+  // On a snowy (near-white) ground, light roads and pale towns vanish: darken them.
+  const snowy = new THREE.Color(pal.grass).getHSL({ h: 0, s: 0, l: 0 }).l > 0.85
+  const town = mix(pal.grass, '#8f9097', snowy ? 0.55 : 0.38)
   return {
     sea: `#${new THREE.Color(pal.water).multiplyScalar(0.9).getHexString()}`,
     land: pal.grass,
     forest: mix(pal.leaves[0], pal.grass, 0.25),
     farm: mix(pal.grass, '#e8d9a0', 0.35),
     grassland: mix(pal.grass, '#ffffff', 0.12),
-    town: mix(pal.grass, '#8f9097', 0.38),
+    town,
     park: mix(pal.leaves[pal.leaves.length - 1], pal.grass, 0.45),
     sand: mix(pal.path, '#f1dfb0', 0.5),
     ice: '#f4f7fa',
     rail: pal.ink,
-    road: mix(pal.path, '#ffffff', 0.35),
-    building: mix(mix(pal.grass, '#8f9097', 0.38), '#3a3a44', 0.22),
+    road: snowy ? '#9ea3ad' : mix(pal.path, '#ffffff', 0.35),
+    building: mix(town, '#3a3a44', snowy ? 0.32 : 0.22),
   }
 }
 

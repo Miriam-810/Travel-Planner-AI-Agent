@@ -3,7 +3,7 @@ import { ApiError, buildTrip, createOutline, fetchSampleTrip, reviseOutline } fr
 import { ErrorBox, GhostButton } from './components/Form'
 import { GlobeHero } from './components/GlobeHero'
 import { changedStops, outlineFromTrip, requestFromTrip } from './lib/editing'
-import { loadLibrary, storeLibrary, tripStatus, withoutTrip, withTrip } from './lib/library'
+import { loadLibrary, statusOf, storeLibrary, tripStatus, withoutTrip, withStatus, withTrip } from './lib/library'
 import { KEYS, load, save } from './lib/storage'
 import { Generating } from './pages/Generating'
 import { OutlineReview } from './pages/OutlineReview'
@@ -291,11 +291,13 @@ export default function App() {
   }
 
   if (view === 'trip' && session.trip) {
+    const saved = library.find((e) => e.trip.id === session.trip?.id)
+    const status = saved ? statusOf(saved) : tripStatus(session.trip)
     return (
       <>
         <TopBar>
           <GhostButton onClick={() => go('form')}>← 回到地球</GhostButton>
-          {tripStatus(session.trip) === 'planned' && (
+          {status === 'planned' && (
             <GhostButton
               onClick={() =>
                 // The outline this trip came from is still here (with its chat): go back to it as it was.
@@ -305,6 +307,12 @@ export default function App() {
               }
             >
               編輯行程
+            </GhostButton>
+          )}
+          {saved && (
+            // Dates decide by default; these fix it by hand (an old trip added late, or one postponed).
+            <GhostButton onClick={() => setLibrary((list) => withStatus(list, saved.trip.id, status === 'planned' ? 'built' : 'planned'))}>
+              {status === 'planned' ? '標記為已經去過' : '其實還沒去'}
             </GhostButton>
           )}
           <GhostButton onClick={startOver}>規劃新行程</GhostButton>

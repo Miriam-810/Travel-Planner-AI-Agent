@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState } from 'react'
 import { monthDay } from '../lib/format'
-import { tripStatus, type SavedTrip } from '../lib/library'
+import { statusOf, type SavedTrip } from '../lib/library'
 import { palette } from '../lib/themes'
 import { Icon } from './Icon'
 
@@ -17,7 +17,8 @@ interface Props {
 /** The globe on the home page, with an island for every trip planned on this device. */
 export function GlobeHero({ trips, onOpen, onRemove }: Props) {
   const [hovered, setHovered] = useState<string | null>(null)
-  const hoveredTrip = trips.find((e) => e.trip.id === hovered)?.trip
+  const hoveredEntry = trips.find((e) => e.trip.id === hovered)
+  const hoveredTrip = hoveredEntry?.trip
 
   return (
     // Wider than the form on large screens: the globe is the page's centrepiece.
@@ -33,7 +34,7 @@ export function GlobeHero({ trips, onOpen, onRemove }: Props) {
           {hoveredTrip ? (
             <>
               <span className="text-white">{hoveredTrip.destination}</span>・{monthDay(hoveredTrip.start_date)}–{monthDay(hoveredTrip.end_date)}・
-              {STATUS_TEXT[tripStatus(hoveredTrip)]}
+              {STATUS_TEXT[statusOf(hoveredEntry!)]}
             </>
           ) : trips.length === 0 ? (
             '完成第一趟規劃，地球上就會長出第一座小島'
@@ -46,8 +47,9 @@ export function GlobeHero({ trips, onOpen, onRemove }: Props) {
       {trips.length > 0 && (
         <>
           <ul className="m-0 mt-3 flex list-none flex-wrap justify-center gap-2 p-0">
-            {trips.map(({ trip }) => {
-              const status = tripStatus(trip)
+            {trips.map((entry) => {
+              const { trip } = entry
+              const status = statusOf(entry)
               return (
                 <li key={trip.id} className="flex items-center rounded-full bg-cream shadow-[var(--shadow-soft)]">
                   <button

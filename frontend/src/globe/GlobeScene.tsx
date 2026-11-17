@@ -7,7 +7,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
-import { tripCentre, tripStatus, type SavedTrip, type TripStatus } from '../lib/library'
+import { statusOf, tripCentre, type SavedTrip, type TripStatus } from '../lib/library'
 import { palette3d } from '../island/palette3d'
 import { mainCity, type LandmarkKind } from '../island/cities'
 import { Landmark } from '../island/landmarks'
@@ -368,7 +368,7 @@ function place(trips: SavedTrip[]): Placed[] {
     placed.push({
       id: e.trip.id,
       dir: toVector(c.lat, c.lng),
-      status: tripStatus(e.trip),
+      status: statusOf(e),
       theme: e.trip.theme,
       phase: i * 1.7,
       landmark: mainCity(e.trip)?.landmark ?? null,
