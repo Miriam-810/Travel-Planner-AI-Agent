@@ -189,12 +189,44 @@ class PlaceHours(BaseModel):
     checked_at: datetime
 
 
+LegMode = Literal["transit", "walk", "far"]
+StepMode = Literal["walk", "train", "shinkansen", "subway", "tram", "bus", "ferry", "other"]
+
+
+class LegStep(BaseModel):
+    """One ride within a transit leg (walks between rides are left out)."""
+
+    mode: StepMode
+    line: str = Field(examples=["中央線快速"])
+    from_name: str
+    to_name: str
+    minutes: int
+
+
+class Leg(BaseModel):
+    """How to get from one place to the next.
+
+    transit: a public transport route was found (steps say which lines).
+    walk:    close enough to walk (or the router said walking is best).
+    far:     no route found; only the distance, and a Google Maps link to look it up.
+    """
+
+    mode: LegMode
+    minutes: int | None
+    distance_m: int
+    summary: str = Field(examples=["電車 中央線快速 14 分"])
+    steps: list[LegStep] = Field(default_factory=list)
+    maps_url: str = Field(description="Google Maps directions by public transport, for the traveller to check")
+
+
 class Stop(StopDraft):
     id: str = Field(examples=["d3-s1"])
     lat: float
     lng: float
     maps_url: str | None = None
     hours: PlaceHours | None = None
+    # How to get here from the previous stop (or from the hotel, for the first stop).
+    leg: Leg | None = None
 
 
 class Day(BaseModel):
@@ -205,6 +237,8 @@ class Day(BaseModel):
     lodging: str | None = None
     stops: list[Stop]
     warnings: list[str] = Field(default_factory=list)
+    # From the last stop back to tonight's hotel, when we know where it is.
+    leg_to_hotel: Leg | None = None
 
 
 class Trip(BaseModel):

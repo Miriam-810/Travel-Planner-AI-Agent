@@ -61,6 +61,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "walk",
+            "minutes": 8,
+            "distance_m": 611,
+            "summary": "步行約 8 分",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=40.82770,140.73760&destination=40.83010,140.73300&travelmode=transit"
           }
         },
         {
@@ -82,6 +90,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "walk",
+            "minutes": 6,
+            "distance_m": 445,
+            "summary": "步行約 6 分",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=40.83010,140.73300&destination=40.82780,140.73570&travelmode=transit"
           }
         }
       ],
@@ -140,6 +156,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "far",
+            "minutes": null,
+            "distance_m": 17517,
+            "summary": "相距約 17.5 公里，可以用 Google 地圖查電車",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=40.59150,141.00020&destination=40.61270,141.20580&travelmode=transit"
           }
         },
         {
@@ -161,6 +185,14 @@
             "open_at_arrive": null,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "far",
+            "minutes": null,
+            "distance_m": 21383,
+            "summary": "相距約 21.4 公里，可以用 Google 地圖查電車",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=40.61270,141.20580&destination=40.56020,140.96220&travelmode=transit"
           }
         },
         {
@@ -182,6 +214,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "far",
+            "minutes": null,
+            "distance_m": 35480,
+            "summary": "相距約 35.5 公里，可以用 Google 地圖查電車",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=40.56020,140.96220&destination=40.82830,140.73400&travelmode=transit"
           }
         }
       ],
@@ -242,6 +282,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "walk",
+            "minutes": 4,
+            "distance_m": 275,
+            "summary": "步行約 4 分",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=40.60740,140.46420&destination=40.60600,140.46250&travelmode=transit"
           }
         },
         {
@@ -263,6 +311,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "far",
+            "minutes": null,
+            "distance_m": 33798,
+            "summary": "相距約 33.8 公里，可以用 Google 地圖查電車",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=40.60600,140.46250&destination=40.82970,140.73400&travelmode=transit"
           }
         },
         {
@@ -284,6 +340,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "walk",
+            "minutes": 7,
+            "distance_m": 547,
+            "summary": "步行約 7 分",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=40.82970,140.73400&destination=40.82700,140.73750&travelmode=transit"
           }
         }
       ],
@@ -344,6 +408,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "walk",
+            "minutes": 3,
+            "distance_m": 219,
+            "summary": "步行約 3 分",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=40.82470,140.73830&destination=40.82550,140.74000&travelmode=transit"
           }
         }
       ],
@@ -404,6 +476,22 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "transit",
+            "minutes": 24,
+            "distance_m": 1069,
+            "summary": "路面電車 函館市電（往 谷地頭），共 24 分",
+            "steps": [
+              {
+                "mode": "tram",
+                "line": "函館市電（往 谷地頭）",
+                "from_name": "函館駅前",
+                "to_name": "宝来町",
+                "minutes": 8
+              }
+            ],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=41.77300,140.72620&destination=41.75900,140.71200&travelmode=transit"
           }
         },
         {
@@ -425,6 +513,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "walk",
+            "minutes": 17,
+            "distance_m": 1248,
+            "summary": "步行約 17 分",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=41.75900,140.71200&destination=41.76660,140.71750&travelmode=transit"
           }
         }
       ],
@@ -485,6 +581,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "walk",
+            "minutes": 8,
+            "distance_m": 607,
+            "summary": "步行約 8 分",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=41.76650,140.71700&destination=41.76370,140.71280&travelmode=transit"
           }
         },
         {
@@ -506,6 +610,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "walk",
+            "minutes": 8,
+            "distance_m": 605,
+            "summary": "步行約 8 分",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=41.76370,140.71280&destination=41.76630,140.71720&travelmode=transit"
           }
         },
         {
@@ -527,6 +639,22 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "transit",
+            "minutes": 39,
+            "distance_m": 1287,
+            "summary": "路面電車 函館市電（往 湯の川），共 39 分",
+            "steps": [
+              {
+                "mode": "tram",
+                "line": "函館市電（往 湯の川）",
+                "from_name": "十字街",
+                "to_name": "中央病院前",
+                "minutes": 20
+              }
+            ],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=41.76630,140.71720&destination=41.79440,140.75420&travelmode=transit"
           }
         },
         {
@@ -548,6 +676,22 @@
             "open_at_arrive": null,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "transit",
+            "minutes": 31,
+            "distance_m": 1279,
+            "summary": "路面電車 函館市電（往 湯の川），共 31 分",
+            "steps": [
+              {
+                "mode": "tram",
+                "line": "函館市電（往 湯の川）",
+                "from_name": "杉並町",
+                "to_name": "湯の川",
+                "minutes": 12
+              }
+            ],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=41.79440,140.75420&destination=41.77900,140.78950&travelmode=transit"
           }
         },
         {
@@ -569,6 +713,22 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "transit",
+            "minutes": 27,
+            "distance_m": 645,
+            "summary": "路面電車 函館市電（往 谷地頭），共 27 分",
+            "steps": [
+              {
+                "mode": "tram",
+                "line": "函館市電（往 谷地頭）",
+                "from_name": "湯の川",
+                "to_name": "五稜郭公園前",
+                "minutes": 16
+              }
+            ],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=41.77900,140.78950&destination=41.79050,140.75200&travelmode=transit"
           }
         }
       ],
@@ -627,6 +787,22 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "transit",
+            "minutes": 14,
+            "distance_m": 752,
+            "summary": "路面電車 函館市電（往 谷地頭），共 14 分",
+            "steps": [
+              {
+                "mode": "tram",
+                "line": "函館市電（往 谷地頭）",
+                "from_name": "函館駅前",
+                "to_name": "魚市場通",
+                "minutes": 2
+              }
+            ],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=41.77330,140.72620&destination=41.76670,140.71870&travelmode=transit"
           }
         },
         {
@@ -648,6 +824,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "far",
+            "minutes": null,
+            "distance_m": 104527,
+            "summary": "相距約 104.5 公里，可以用 Google 地圖查電車",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=41.76670,140.71870&destination=40.82680,140.74000&travelmode=transit"
           }
         }
       ],
@@ -709,6 +893,14 @@
             "open_at_arrive": true,
             "business_status": "OPERATIONAL",
             "checked_at": "2026-11-15T10:00:00+09:00"
+          },
+          "leg": {
+            "mode": "far",
+            "minutes": null,
+            "distance_m": 11141,
+            "summary": "相距約 11.1 公里，可以用 Google 地圖查電車",
+            "steps": [],
+            "maps_url": "https://www.google.com/maps/dir/?api=1&origin=40.82680,140.74290&destination=40.73470,140.69080&travelmode=transit"
           }
         }
       ],

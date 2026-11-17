@@ -17,6 +17,8 @@ const PATHS = {
   back: 'M15 6l-6 6 6 6',
   forward: 'M9 6l6 6-6 6',
   map: 'm9 4-5 2v14l5-2 6 2 5-2V4l-5 2-6-2Zm0 0v14m6-12v14',
+  walk: 'M13 4.5a1.5 1.5 0 1 0 0-.01M10 21l2-6 2.5 2.5V21M8 12l2-4h3l2 3 3 1M12 8l-1 5',
+  train: 'M7 4h10a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Zm-2 7h14M8 17l-2 3m10-3 2 3M9 14h.01M15 14h.01',
 } as const
 
 export type IconName = keyof typeof PATHS

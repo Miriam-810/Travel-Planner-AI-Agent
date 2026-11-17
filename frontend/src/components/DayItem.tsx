@@ -1,7 +1,9 @@
+import { Fragment } from 'react'
 import { monthDay, weekdayZh, zhNumber } from '../lib/format'
 import type { Day } from '../types'
 import { WeatherBadge } from './Badges'
 import { Icon } from './Icon'
+import { LegLine } from './LegLine'
 import { StopRow } from './StopRow'
 
 interface Props {
@@ -68,15 +70,17 @@ export function DayItem({ day, index, open, selectedStopId, onToggle, onSelectSt
 
           <ol className="m-0 flex list-none flex-col gap-2 p-0">
             {day.stops.map((stop, i) => (
-              <StopRow
-                key={stop.id}
-                stop={stop}
-                index={i + 1}
-                selected={stop.id === selectedStopId}
-                onSelect={onSelectStop}
-              />
+              <Fragment key={stop.id}>
+                {/* How to get here: from the hotel for the first stop, else from the stop before. */}
+                {stop.leg && <LegLine leg={stop.leg} to={i === 0 ? '從飯店出發' : undefined} />}
+                <StopRow stop={stop} index={i + 1} selected={stop.id === selectedStopId} onSelect={onSelectStop} />
+              </Fragment>
             ))}
+            {day.leg_to_hotel && <LegLine leg={day.leg_to_hotel} to="回飯店" />}
           </ol>
+          {[...day.stops.map((s) => s.leg), day.leg_to_hotel].some((l) => l?.mode === 'transit') && (
+            <p className="m-0 mt-2 px-1 text-[11.5px] text-ink-soft">交通資料：Transitous（開放時刻表），出發前請再確認班次</p>
+          )}
 
           {day.lodging && (
             <div className="mt-3 flex items-center gap-2 rounded-3xl bg-cream px-4 py-2.5 text-[14px]">

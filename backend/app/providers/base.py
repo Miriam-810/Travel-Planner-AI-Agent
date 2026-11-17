@@ -22,7 +22,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal, Protocol
 from zoneinfo import ZoneInfo
 
-from app.models import PlaceHours
+from app.models import Leg, PlaceHours
 from app.tools.hours import hours_text, is_open_for_stay
 
 # Many sources (Google's currentOpeningHours) report actual hours, holidays and
@@ -93,9 +93,7 @@ class PlaceProvider(Protocol):
         ...
 
 
-# --- routes (interface only; phase 2) ------------------------------------------
-
-TravelMode = Literal["transit", "walk", "drive"]
+# --- routes ----------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -104,16 +102,14 @@ class LatLng:
     lng: float
 
 
-@dataclass(frozen=True)
-class Route:
-    mode: TravelMode
-    duration_min: int
-    distance_m: int
-    summary: str  # e.g. "JR 奧羽本線 → 徒步 8 分"
+class RoutesError(Exception):
+    """The routing service failed (as opposed to finding no route)."""
 
 
 class RouteProvider(Protocol):
-    async def route(self, origin: LatLng, destination: LatLng, *, depart_at: datetime, mode: TravelMode) -> Route:
+    async def transit(self, origin: LatLng, destination: LatLng, *, at: datetime, arrive_by: bool) -> Leg | None:
+        """A public transport route, leaving at (or arriving by) `at`; None when there is none.
+        Raises RoutesError when the service fails."""
         ...
 
 
@@ -146,7 +142,7 @@ class Providers:
 
     country: Country
     places: PlaceProvider
-    routes: RouteProvider | None = None  # phase 2
+    routes: RouteProvider | None = None  # public transport; None: legs fall back to walking / a map link
 
 
 class ProviderRegistry:

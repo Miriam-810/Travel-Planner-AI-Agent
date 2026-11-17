@@ -27,6 +27,26 @@ export interface PlaceHours {
   checked_at: string
 }
 
+/** One ride within a transit leg. */
+export interface LegStep {
+  mode: 'walk' | 'train' | 'shinkansen' | 'subway' | 'tram' | 'bus' | 'ferry' | 'other'
+  line: string
+  from_name: string
+  to_name: string
+  minutes: number
+}
+
+/** How to get from one place to the next (backend Leg). */
+export interface Leg {
+  /** transit: rides found; walk: close enough to walk; far: only the distance and a map link. */
+  mode: 'transit' | 'walk' | 'far'
+  minutes: number | null
+  distance_m: number
+  summary: string
+  steps: LegStep[]
+  maps_url: string
+}
+
 export interface Stop {
   id: string
   name: string
@@ -42,6 +62,8 @@ export interface Stop {
   lng: number
   maps_url: string | null
   hours: PlaceHours | null
+  /** How to get here from the previous stop (or the hotel). Missing on older trips. */
+  leg?: Leg | null
 }
 
 export interface Day {
@@ -53,6 +75,8 @@ export interface Day {
   lodging: string | null
   stops: Stop[]
   warnings: string[]
+  /** From the last stop back to tonight's hotel, when its place is known. */
+  leg_to_hotel?: Leg | null
 }
 
 export interface Trip {

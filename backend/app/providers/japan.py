@@ -7,6 +7,7 @@ import httpx2
 
 from app.providers.base import Country, Providers
 from app.providers.google_places import GooglePlacesProvider
+from app.providers.transitous import TransitousRouteProvider
 
 
 def holiday_season(day: date) -> str | None:
@@ -36,4 +37,4 @@ def japan_providers(client: httpx2.AsyncClient, places_api_key: str) -> Provider
     # Japanese, so names come back as the shop's own name (e.g. 青森魚菜センター), never a
     # romanised fallback like "Yokochou" when Google has no Chinese name for the place.
     places = GooglePlacesProvider(client, places_api_key, language="ja", region="JP")
-    return Providers(country=JAPAN, places=places, routes=None)
+    return Providers(country=JAPAN, places=places, routes=TransitousRouteProvider(client))

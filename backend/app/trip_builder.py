@@ -2,18 +2,20 @@
 
 No LLM here. Weather comes from get_weather, place details (coordinates, maps
 link, opening hours) from the country's PlaceProvider, lodging from the user's
-request. Problems the user should know about (closed on arrival, closed for
+request, and how to get between places from app.legs (public transport where
+the country has a router). Problems the user should know about (closed on arrival, closed for
 good, holiday hours) become the day's warnings.
 """
 
 import asyncio
 import uuid
-from datetime import date
+from datetime import date, timedelta
 
 import httpx2
 
+from app.legs import day_legs, distance_m
 from app.models import Day, DayDraft, LodgingInput, Stop, Trip, TripOutline, TripRequest, Weather
-from app.providers.base import Country, Providers
+from app.providers.base import Country, LatLng, PlacesError, Providers
 from app.tools.weather import WeatherError, get_weather
 
 
@@ -27,9 +29,12 @@ async def build_trip(
 ) -> Trip:
     country = providers.country
     today = today or country.today()
-    weathers = await asyncio.gather(*(_weather_or_none(d, client, country, today) for d in outline.days))
+    weathers, lodgings = await asyncio.gather(
+        asyncio.gather(*(_weather_or_none(d, client, country, today) for d in outline.days)),
+        locate_lodgings(request.lodgings, outline, request.destination, providers),
+    )
     days = [
-        await _build_day(i, d, w, request.lodgings, providers, today)
+        await _build_day(i, d, w, lodgings, providers, today)
         for i, (d, w) in enumerate(zip(outline.days, weathers, strict=True), start=1)
     ]
     return Trip(
@@ -71,6 +76,15 @@ async def _build_day(
         )
         for i, (s, p) in enumerate(zip(draft.stops, places, strict=True), start=1)
     ]
+    into, to_hotel = await day_legs(
+        draft.date,
+        stops,
+        morning_hotel=lodging_input_for_night(draft.date - timedelta(days=1), lodgings),
+        night_hotel=lodging_input_for_night(draft.date, lodgings),
+        tz=providers.country.timezone,
+        routes=providers.routes,
+    )
+    stops = [s.model_copy(update={"leg": leg}) for s, leg in zip(stops, into, strict=True)]
     return Day(
         date=draft.date,
         title=draft.title,
@@ -79,7 +93,38 @@ async def _build_day(
         lodging=lodging_for_night(draft.date, lodgings),
         stops=stops,
         warnings=day_warnings(draft.date, stops, providers.country, today),
+        leg_to_hotel=to_hotel,
     )
+
+
+# A typed hotel name is trusted only if the best match is this close to where
+# that night's day is planned: a same-name hotel in another city is worse than none.
+HOTEL_NEAR_M = 30_000
+
+
+async def locate_lodgings(
+    lodgings: list[LodgingInput], outline: TripOutline, destination: str, providers: Providers
+) -> list[LodgingInput]:
+    """Find where each hotel typed by hand is (one place search each), so the day can
+    start and end there. Hotels picked from the search already know their place."""
+
+    async def locate(lodging: LodgingInput) -> LodgingInput:
+        if lodging.lat is not None and lodging.lng is not None:
+            return lodging
+        day = next((d for d in outline.days if d.date == lodging.check_in), None)
+        near = LatLng(day.area_lat, day.area_lng) if day else LatLng(*providers.country.centre)
+        try:
+            found = await providers.places.search(f"{lodging.name} {destination}".strip(), near.lat, near.lng, radius_m=30_000)
+        except PlacesError:
+            return lodging
+        if not found:
+            return lodging
+        best = found[0]
+        if day is not None and distance_m(near, LatLng(best.lat, best.lng)) > HOTEL_NEAR_M:
+            return lodging
+        return lodging.model_copy(update={"place_id": best.place_id, "lat": best.lat, "lng": best.lng})
+
+    return list(await asyncio.gather(*(locate(lodging) for lodging in lodgings)))
 
 
 STATUS_TEXT = {"CLOSED_TEMPORARILY": "暫停營業", "CLOSED_PERMANENTLY": "已歇業"}
