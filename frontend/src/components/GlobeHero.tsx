@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react'
+import { lazy, Suspense, useMemo, useState } from 'react'
 import { monthDay } from '../lib/format'
 import { statusOf, type SavedTrip } from '../lib/library'
 import { palette } from '../lib/themes'
@@ -27,7 +27,8 @@ export function GlobeHero({ trips, onOpen, onRemove }: Props) {
   const hoveredEntry = trips.find((e) => e.trip.id === hovered)
   const hoveredTrip = hoveredEntry?.trip
   const hoveredCountry = hovered?.startsWith(COUNTRY_PREFIX) ? hovered.slice(COUNTRY_PREFIX.length) : null
-  const countryTrips = country ? trips.filter((e) => e.trip.country === country) : []
+  // Kept stable across hovers: a new list would rebuild the whole country map (and make it flash).
+  const countryTrips = useMemo(() => (country ? trips.filter((e) => e.trip.country === country) : []), [trips, country])
   const tripsIn = (code: string) => trips.filter((e) => e.trip.country === code)
 
   return (

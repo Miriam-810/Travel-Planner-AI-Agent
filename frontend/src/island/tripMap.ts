@@ -92,7 +92,7 @@ function clipEdge(ring: P[], inside: (p: P) => boolean, cross: (a: P, b: P) => P
 const lerp = (a: P, b: P, t: number): P => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]
 
 /** Clip a lng/lat ring to a box (Sutherland–Hodgman, one edge at a time). */
-function clipRing(ring: P[], box: GeoBox): P[] {
+export function clipRing(ring: P[], box: GeoBox): P[] {
   let r = clipEdge(ring, (p) => p[0] >= box.west, (a, b) => lerp(a, b, (box.west - a[0]) / (b[0] - a[0])))
   if (r.length) r = clipEdge(r, (p) => p[0] <= box.east, (a, b) => lerp(a, b, (box.east - a[0]) / (b[0] - a[0])))
   if (r.length) r = clipEdge(r, (p) => p[1] >= box.south, (a, b) => lerp(a, b, (box.south - a[1]) / (b[1] - a[1])))
@@ -102,7 +102,7 @@ function clipRing(ring: P[], box: GeoBox): P[] {
 
 let rings: { pts: P[]; west: number; east: number; south: number; north: number }[] | null = null
 
-function landRings() {
+export function landRings() {
   rings ??= (landData as number[][]).map((flat) => {
     const pts: P[] = []
     for (let i = 0; i < flat.length; i += 2) pts.push([flat[i] / 1000, flat[i + 1] / 1000])

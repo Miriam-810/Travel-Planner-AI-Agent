@@ -4,8 +4,9 @@
 // numbered flag for each day; opening a day flies the camera down to it and
 // numbers its stops.
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
+import { MapControls } from 'three/examples/jsm/controls/MapControls.js'
 import type { Trip } from '../types'
 import { monthDay, weekdayZh } from '../lib/format'
 import { statusOf, tripCentre, type SavedTrip } from '../lib/library'
@@ -18,6 +19,7 @@ import { PIECE_HEIGHT, sceneOf } from './sceneKinds'
 import { ScenePiece } from './scenes'
 import { loadDetail, loadTerrain, type Detail, type Terrain } from './terrain'
 import { daylight, hourOf, skyAt, type Sky } from './sky'
+import { buildCountryMap } from './countryMap'
 import { buildTripMap, onLand, toScene, type P, type TripMap } from './tripMap'
 
 const FOV = 35
@@ -748,6 +750,8 @@ function CameraRig({
   selected,
   aspect,
   reducedMotion,
+  insets,
+  markerHeight = 4.5,
 }: {
   map: TripMap
   openDay: number | null
@@ -755,6 +759,10 @@ function CameraRig({
   selected: number
   aspect: number
   reducedMotion: boolean
+  /** Pixels covered at the top and bottom of the view; the trip page's title card and switch by default. */
+  insets?: { top: number; bottom: number }
+  /** How tall the overview's markers stand, in scene units. */
+  markerHeight?: number
 }) {
   const { camera, size } = useThree()
   const lookAt = useRef(new THREE.Vector3())
@@ -772,12 +780,12 @@ function CameraRig({
     const hz = (day ? day.half[1] : map.half[1]) + pad
     const width = hx * 2
     // Flags stand about 4 units tall over the overview; a day's scenes about one scene.
-    const depth = hz * 2 * Math.sin(tilt) + (day ? day.piece : 4.5) * Math.cos(tilt)
+    const depth = hz * 2 * Math.sin(tilt) + (day ? day.piece : markerHeight) * Math.cos(tilt)
 
     // The title card (top) and the island/map switch (bottom) cover strips of the view:
     // fit everything into the clear band between them, and centre it there.
-    const topInset = Math.min(110, size.height * 0.24)
-    const bottomInset = Math.min(64, size.height * 0.15)
+    const topInset = insets?.top ?? Math.min(110, size.height * 0.24)
+    const bottomInset = insets?.bottom ?? Math.min(64, size.height * 0.15)
     const clear = Math.max(0.4, (size.height - topInset - bottomInset) / size.height)
     const dist = Math.max(width / (2 * Math.tan(hfov / 2)), depth / (2 * Math.tan(vfov / 2) * clear))
     // Shift the aim so the clear band's middle, not the canvas middle, lands on the stops.
@@ -786,7 +794,7 @@ function CameraRig({
     const target = new THREE.Vector3(cx, LAND_TOP, cz - shift / Math.sin(tilt))
     const pos = target.clone().add(new THREE.Vector3(0, Math.sin(tilt) * dist, Math.cos(tilt) * dist))
     return { pos, target, dist }
-  }, [map, openDay, selected, aspect, size.height])
+  }, [map, openDay, selected, aspect, size.height, insets?.top, insets?.bottom, markerHeight])
 
 
 
@@ -833,7 +841,7 @@ export function CountryScene({
         <CountryBoard trips={trips} onOpen={onOpen} onHover={onHover} pal={pal} sky={sky} />
       </Canvas>
       <p className="pointer-events-none absolute right-3 bottom-1.5 m-0 text-[10px] text-ink-soft/80">
-        地形：国土地理院｜© OpenStreetMap・OpenFreeMap
+        海岸線：Natural Earth
       </p>
     </div>
   )
@@ -856,8 +864,7 @@ function CountryBoard({
   const aspect = size.width / Math.max(size.height, 1)
   const viewAspect = Math.round(aspect * 4) / 4
   const reducedMotion = useMemo(() => prefersReducedMotion(), [])
-  // Each trip becomes one point on the map (its centre), so the trip map's machinery
-  // (coastline, terrain, trees, spread-out flags, camera) draws the whole country.
+  // Each trip becomes one spot on the map, at its centre.
   const points = useMemo(
     () =>
       trips.flatMap((e) => {
@@ -866,28 +873,17 @@ function CountryBoard({
       }),
     [trips],
   )
-  const map = useMemo(
-    () =>
-      buildTripMap(
-        points.map((p) => ({ stops: [{ lat: p.centre.lat, lng: p.centre.lng }] }) as unknown as Trip['days'][number]),
-        'country',
-        viewAspect,
-        180, // at least 360 km across: enough of the country around even a single trip
-      ),
-    [points, viewAspect],
-  )
-  // A whole country is drawn small: lift the mountains so the Alps and the volcanoes still show.
-  const terrain = useTerrain(map, pal, 4)
-  const ground = useMemo(() => (terrain ? terrain.heightAt : () => LAND_TOP), [terrain])
-  // Trip markers are bigger than day flags: spread them further apart.
-  const spots = useMemo(() => flagSpots(map, 4.6), [map])
+  const map = useMemo(() => buildCountryMap(points.map((p) => p.centre), viewAspect), [points, viewAspect])
+  const ground = useCallback((x: number, z: number) => (onLand(x, z, map.land) ? COUNTRY_TOP : 0.02), [map])
+  const spots = useMemo(() => flagSpots(map, 2.4), [map])
 
   return (
     <GroundCtx.Provider value={ground}>
       <Lights sky={sky} reducedMotion={reducedMotion} />
-      <CameraRig map={map} openDay={null} selected={-1} aspect={aspect} reducedMotion={reducedMotion} />
-      {terrain ? <TerrainMesh map={map} terrain={terrain} pal={pal} /> : <MapBase map={map} pal={pal} />}
-      <Trees map={map} pal={pal} seed="country" terrain={terrain} />
+      <CountryCamera map={map} aspect={aspect} />
+      <CountryLand map={map} pal={pal} />
+      <CountryTrees map={map} pal={pal} />
+      <CountryFuji map={map} />
       {points.map(({ entry }, i) => (
         <TripMarker
           key={entry.trip.id}
@@ -898,9 +894,206 @@ function CountryBoard({
           onHover={onHover}
           reducedMotion={reducedMotion}
           index={i}
+          size={0.6}
         />
       ))}
     </GroundCtx.Provider>
+  )
+}
+
+/** Only the back button (top) and the hint (bottom) cover the country map. */
+const COUNTRY_INSETS = { top: 44, bottom: 34 }
+const COUNTRY_TILT = THREE.MathUtils.degToRad(50)
+
+/**
+ * Starts framing the whole country, then lets the traveller look around:
+ * drag to move, scroll or pinch to zoom (towards the pointer), within the map.
+ */
+function CountryCamera({ map, aspect }: { map: TripMap; aspect: number }) {
+  const { gl, size } = useThree()
+  const getState = useThree((s) => s.get)
+
+  const fit = useMemo(() => {
+    // Find the closest distance at which every corner of the country (and the
+    // markers standing on it) shows between the button at the top and the hint at the bottom.
+    const { top, bottom } = COUNTRY_INSETS
+    const ndcTop = 1 - (2 * top) / size.height
+    const ndcBottom = -1 + (2 * bottom) / size.height
+    const [cx, cz] = map.centre
+    // The coastline itself (not its bounding box: the corners are empty sea), and each marker's top.
+    const corners: THREE.Vector3[] = []
+    map.land.forEach((ring) => ring.forEach(([x, z], i) => i % 3 === 0 && corners.push(new THREE.Vector3(x, COUNTRY_TOP, z))))
+    for (const d of map.days) {
+      const [x, z] = d.centre
+      for (const [dx, dz] of [[-2, 0], [2, 0], [0, 1.2]]) corners.push(new THREE.Vector3(x + dx, COUNTRY_TOP + 1.6, z + dz))
+    }
+    const cam = new THREE.PerspectiveCamera(FOV, aspect, 0.1, 1000)
+    const dir = new THREE.Vector3(0, Math.sin(COUNTRY_TILT), Math.cos(COUNTRY_TILT))
+    const p = new THREE.Vector3()
+    const place = (dist: number) => {
+      // Aim a little behind the middle so the picture sits in the clear band, not the canvas middle.
+      const viewHeight = 2 * dist * Math.tan(THREE.MathUtils.degToRad(FOV) / 2)
+      const shift = ((top - bottom) / 2 / size.height) * viewHeight
+      const target = new THREE.Vector3(cx, COUNTRY_TOP, cz - shift / Math.sin(COUNTRY_TILT))
+      cam.position.copy(target).addScaledVector(dir, dist)
+      cam.lookAt(target)
+      cam.updateMatrixWorld()
+      return target
+    }
+    const fits = (dist: number) => {
+      place(dist)
+      return corners.every((c) => {
+        p.copy(c).project(cam)
+        return p.x >= -1 && p.x <= 1 && p.y >= ndcBottom && p.y <= ndcTop
+      })
+    }
+    let lo = 1
+    let hi = 1000
+    for (let i = 0; i < 40; i++) {
+      const mid = (lo + hi) / 2
+      if (fits(mid)) hi = mid
+      else lo = mid
+    }
+    const target = place(hi)
+    return { pos: cam.position.clone(), target, dist: hi }
+  }, [map, aspect, size.height])
+
+  useEffect(() => {
+    const persp = getState().camera as THREE.PerspectiveCamera
+    persp.position.copy(fit.pos)
+    persp.lookAt(fit.target)
+    const controls = new MapControls(persp, gl.domElement)
+    controls.target.copy(fit.target)
+    controls.enableRotate = false
+    controls.enableDamping = true
+    controls.dampingFactor = 0.12
+    controls.zoomToCursor = true
+    controls.screenSpacePanning = false
+    controls.minDistance = fit.dist * 0.18
+    controls.maxDistance = fit.dist * 1.15
+    const [cx, cz] = map.centre
+    const [hx, hz] = map.half
+    const offset = new THREE.Vector3()
+    const onChange = () => {
+      // Keep the view over the country: the aim may not leave the map's own extent.
+      const t = controls.target
+      const x = THREE.MathUtils.clamp(t.x, cx - hx, cx + hx)
+      const z = THREE.MathUtils.clamp(t.z, cz - hz, cz + hz + 2)
+      if (x !== t.x || z !== t.z) {
+        offset.set(x - t.x, 0, z - t.z)
+        t.add(offset)
+        persp.position.add(offset)
+      }
+      // Depth precision follows the distance, so the sea and the land don't flicker.
+      const near = Math.max(0.005, persp.position.distanceTo(t) * 0.02)
+      if (Math.abs(persp.near - near) > near * 0.1) {
+        persp.near = near
+        persp.far = fit.dist * 6 + 50
+        persp.updateProjectionMatrix()
+      }
+    }
+    controls.addEventListener('change', onChange)
+    onChange()
+    controls.update()
+    const raf = { id: 0 }
+    const tick = () => {
+      controls.update()
+      raf.id = requestAnimationFrame(tick)
+    }
+    raf.id = requestAnimationFrame(tick)
+    return () => {
+      cancelAnimationFrame(raf.id)
+      controls.removeEventListener('change', onChange)
+      controls.dispose()
+    }
+  }, [getState, gl, fit, map])
+
+  return null
+}
+
+/** Height of the country's land top: islands as soft cushions on a calm sea. */
+const COUNTRY_TOP = 0.42
+
+/** The country's islands, with rounded (bevelled) edges, on a calm sea. */
+function CountryLand({ map, pal }: { map: TripMap; pal: Palette3D }) {
+  const land = useMemo(() => {
+    const shapes = map.land.map((ring) => new THREE.Shape(ring.map(([x, z]) => new THREE.Vector2(x, -z))))
+    const geo = new THREE.ExtrudeGeometry(shapes, {
+      depth: COUNTRY_TOP - 0.16,
+      bevelEnabled: true,
+      bevelThickness: 0.16,
+      bevelSize: 0.14,
+      bevelSegments: 4,
+      curveSegments: 4,
+    })
+    geo.rotateX(-Math.PI / 2)
+    return geo
+  }, [map])
+  useEffect(() => () => land.dispose(), [land])
+  const sea = useMemo(() => new THREE.Color(pal.water).lerp(new THREE.Color('#ffffff'), 0.15), [pal.water])
+  return (
+    <group>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[map.centre[0], 0, map.centre[1]]} raycast={() => null}>
+        <circleGeometry args={[Math.max(map.width, map.depth) * 1.2, 64]} />
+        <meshStandardMaterial color={sea} roughness={0.85} />
+      </mesh>
+      <mesh geometry={land} raycast={() => null}>
+        <meshStandardMaterial attach="material-0" color={pal.grass} roughness={0.9} />
+        <meshStandardMaterial attach="material-1" color={pal.path} roughness={0.9} />
+      </mesh>
+    </group>
+  )
+}
+
+/** Round little trees dotted over the land, kept clear of the trip markers. */
+function CountryTrees({ map, pal }: { map: TripMap; pal: Palette3D }) {
+  const mesh = useRef<THREE.InstancedMesh>(null)
+  const spots = useMemo(() => {
+    const rand = seeded('country-trees')
+    const marks = map.days.map((d) => d.centre)
+    const out: { x: number; z: number; s: number }[] = []
+    for (let tries = 0; out.length < 260 && tries < 6000; tries++) {
+      const x = map.centre[0] + (rand() - 0.5) * map.half[0] * 2
+      const z = map.centre[1] + (rand() - 0.5) * map.half[1] * 2
+      if (!onLand(x, z, map.land)) continue
+      // Not right at the coast, where a tree would hang over the rounded edge.
+      if (![0, 1, 2, 3].every((k) => onLand(x + Math.cos(k * 1.57) * 0.35, z + Math.sin(k * 1.57) * 0.35, map.land))) continue
+      if (marks.some(([mx, mz]) => Math.hypot(mx - x, mz - z) < 1.4)) continue
+      out.push({ x, z, s: 0.55 + rand() * 0.5 })
+    }
+    return out
+  }, [map])
+
+  useEffect(() => {
+    const m = mesh.current
+    if (!m) return
+    const mat = new THREE.Matrix4()
+    const colour = new THREE.Color()
+    spots.forEach((t, i) => {
+      mat.makeScale(t.s, t.s * 1.15, t.s).setPosition(t.x, COUNTRY_TOP + 0.2 * t.s, t.z)
+      m.setMatrixAt(i, mat)
+      m.setColorAt(i, colour.set(pal.leaves[i % pal.leaves.length]))
+    })
+    m.instanceMatrix.needsUpdate = true
+    if (m.instanceColor) m.instanceColor.needsUpdate = true
+  }, [spots, pal])
+
+  return (
+    <instancedMesh ref={mesh} args={[undefined, undefined, spots.length]} raycast={() => null}>
+      <sphereGeometry args={[0.2, 12, 8]} />
+      <meshStandardMaterial roughness={0.8} />
+    </instancedMesh>
+  )
+}
+
+/** Mount Fuji, where it really is, unless a trip marker stands there. */
+function CountryFuji({ map }: { map: TripMap }) {
+  const [x, z] = toScene(map.frame, 138.73, 35.36)
+  if (!onLand(x, z, map.land) || map.days.some((d) => Math.hypot(d.centre[0] - x, d.centre[1] - z) < 1.8)) return null
+  return (
+    <group position={[x, COUNTRY_TOP, z]} scale={2.2}>
+      <Landmark kind="fuji" opacity={1} />
+    </group>
   )
 }
 
@@ -916,6 +1109,7 @@ function TripMarker({
   onHover,
   reducedMotion,
   index,
+  size = 1,
 }: {
   entry: SavedTrip
   base: P
@@ -924,6 +1118,8 @@ function TripMarker({
   onHover: (id: string | null) => void
   reducedMotion: boolean
   index: number
+  /** Scale of the marker. */
+  size?: number
 }) {
   const ground = useGround()
   const group = useRef<THREE.Group>(null)
@@ -956,6 +1152,7 @@ function TripMarker({
       <group
         ref={group}
         position={[x, y + 0.15, z]}
+        scale={size}
         onClick={(e) => {
           e.stopPropagation()
           onOpen(entry.trip.id)
